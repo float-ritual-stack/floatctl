@@ -29,18 +29,27 @@ console = Console(theme=float_theme)
 
 def _style_float_content(content: str) -> str:
     """Apply FLOAT-specific styling to content before markdown rendering."""
-    # Style [[wiki-links]] - but preserve them for markdown rendering
-    # We'll let markdown handle the link rendering
+    # Style [[wiki-links]] in cyan - preserve the brackets for visual clarity
+    content = re.sub(r'\[\[([^\]]+)\]\]', r'[[cyan]\1[/cyan]]', content)
     
-    # Style :: metadata markers
-    content = re.sub(r'(\w+)::', r'**\1::**', content)
+    # Style :: metadata markers in dim
+    content = re.sub(r'(\w+)::', r'[dim]\1::[/dim]', content)
     
-    # Style CB-IDs
-    content = re.sub(r'(CB-\d{8}-\d{4}-[A-Z0-9]+)', r'`\1`', content)
+    # Style CB-IDs in bold yellow
+    content = re.sub(r'(CB-\d{8}-\d{4}-[A-Z0-9]+)', r'[bold yellow]\1[/bold yellow]', content)
     
-    # Add spacing around headers
+    # Add spacing around headers for better readability
     content = re.sub(r'\n(#{1,3} [^\n]+)', r'\n\n\1', content)
     content = re.sub(r'(#{1,3} [^\n]+)\n', r'\1\n\n', content)
+    
+    # Style bullets with special FLOAT markers
+    content = re.sub(r'^(\s*[-•*]\s+)(\w+)::', r'\1[dim]\2::[/dim]', content, flags=re.MULTILINE)
+    
+    # Style special FLOAT keywords
+    content = re.sub(r'\b(float\.dispatch|float\.highlight|float\.signal)\b', r'[magenta]\1[/magenta]', content, flags=re.IGNORECASE)
+    
+    # Style personas in brackets
+    content = re.sub(r'\[(sysop|karen|qtb|evna|lf1m|littlefucker)::\]', r'[[green]\1::[/green]]', content, flags=re.IGNORECASE)
     
     return content
 
