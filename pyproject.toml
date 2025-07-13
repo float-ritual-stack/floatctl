@@ -7,7 +7,7 @@ authors = [
     {name = "Evan Schultz", email = "evan@example.com"}
 ]
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["cli", "conversations", "ai", "float", "export"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,6 +31,8 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "alembic>=1.16.4",
     "structlog>=25.4.0",
+    "chromadb>=0.4.0",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -55,6 +57,7 @@ floatctl = "floatctl.cli:main"
 conversations = "floatctl.plugins.conversations:ConversationsPlugin"
 artifacts = "floatctl.plugins.artifacts:ArtifactsPlugin"
 export = "floatctl.plugins.export:ExportPlugin"
+chroma = "floatctl.plugins.chroma:ChromaPlugin"
 
 [dependency-groups]
 dev = [
