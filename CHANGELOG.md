@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Tool call extraction to separate JSONL files
+  - Creates `.tool_calls.jsonl` file alongside markdown when tool calls are present
+  - Each tool call includes ID, name, input, message/content indices
+  - Tool results also captured with output and error status
+  - Tool calls replaced in markdown with safe reference format: `{Tool Call: id → filename:line}`
+  - Tool results replaced with: `{Tool Result: id → filename:line}`
+  - Uses curly braces to avoid markdown/HTML parsing issues
 - Pattern extraction feature for markdown exports
   - Extracts `::` markers with line numbers and content
   - Extracts `float.*` function calls with line numbers
@@ -33,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed "can't compare offset-naive and offset-aware datetimes" error
   - Now properly handles both naive and aware datetimes
   - Assumes UTC for naive datetimes
+- Global floatctl access with relative path support
+  - Updated shell function to preserve current working directory
+  - Fixed issue where relative paths failed when shell function changed directories
+  - Added proper environment variable handling for UV project discovery
 
 ## [1.0.0] - 2025-06-28
 
