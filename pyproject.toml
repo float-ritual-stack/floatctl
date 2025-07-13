@@ -1,0 +1,66 @@
+[project]
+name = "floatctl"
+version = "0.1.0"
+description = "A modern plugin-based CLI tool for managing FLOAT conversation exports and AI workflows"
+readme = "README.md"
+authors = [
+    {name = "Evan Schultz", email = "evan@example.com"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+keywords = ["cli", "conversations", "ai", "float", "export"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "rich-click>=1.8.0",
+    "pydantic>=2.5.0",
+    "loguru>=0.7.0",
+    "pathlib-abc>=0.1.0",
+    "typer>=0.9.0",
+    "sqlalchemy>=2.0.41",
+    "alembic>=1.16.4",
+    "structlog>=25.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.8.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/evanschultz/floatctl"
+Documentation = "https://floatctl.readthedocs.io"
+Repository = "https://github.com/evanschultz/floatctl"
+Issues = "https://github.com/evanschultz/floatctl/issues"
+
+[project.scripts]
+floatctl = "floatctl.cli:main"
+
+[project.entry-points."floatctl.plugins"]
+conversations = "floatctl.plugins.conversations:ConversationsPlugin"
+artifacts = "floatctl.plugins.artifacts:ArtifactsPlugin"
+export = "floatctl.plugins.export:ExportPlugin"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.16.1",
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.3",
+]
