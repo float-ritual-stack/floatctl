@@ -1,5 +1,6 @@
 """Plugin management system for FloatCtl."""
 
+import os
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -11,7 +12,6 @@ from rich.console import Console
 
 from floatctl.core.logging import get_logger, log_plugin_event
 
-logger = get_logger(__name__)
 console = Console()
 
 
@@ -25,7 +25,10 @@ class PluginBase:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize plugin with configuration."""
         self.config = config or {}
-        self.logger = log_plugin_event(self.name, "initialized")
+        if not os.environ.get('_FLOATCTL_COMPLETE'):
+            self.logger = log_plugin_event(self.name, "initialized")
+        else:
+            self.logger = None
     
     def register_commands(self, cli_group: click.Group) -> None:
         """Register plugin commands with the CLI."""
@@ -46,7 +49,14 @@ class PluginManager:
     def __init__(self):
         """Initialize plugin manager."""
         self.plugins: Dict[str, Dict[str, Any]] = {}
-        self.logger = get_logger(__name__)
+        self._logger = None
+    
+    @property
+    def logger(self):
+        """Get logger lazily."""
+        if self._logger is None:
+            self._logger = get_logger(__name__)
+        return self._logger
     
     def load_plugins(self) -> None:
         """Load all available plugins."""
@@ -56,11 +66,12 @@ class PluginManager:
         # Then load directory-based plugins (if needed)
         # self._load_directory_plugins()
         
-        self.logger.info(
-            "plugins_loaded",
-            count=len(self.plugins),
-            plugins=list(self.plugins.keys()),
-        )
+        if not os.environ.get('_FLOATCTL_COMPLETE'):
+            self.logger.info(
+                "plugins_loaded",
+                count=len(self.plugins),
+                plugins=list(self.plugins.keys()),
+            )
     
     def _load_entry_point_plugins(self) -> None:
         """Load plugins via setuptools entry points."""
@@ -80,11 +91,12 @@ class PluginManager:
                 
                 # Validate it's a proper plugin
                 if not isinstance(plugin_instance, PluginBase):
-                    logger.warning(
-                        "invalid_plugin",
-                        name=entry_point.name,
-                        reason="Not a PluginBase subclass",
-                    )
+                    if not os.environ.get('_FLOATCTL_COMPLETE'):
+                        get_logger(__name__).warning(
+                            "invalid_plugin",
+                            name=entry_point.name,
+                            reason="Not a PluginBase subclass",
+                        )
                     continue
                 
                 # Store plugin info
@@ -94,11 +106,12 @@ class PluginManager:
                     "loaded_from": "entry_point",
                 }
                 
-                log_plugin_event(
-                    entry_point.name,
-                    "loaded",
-                    version=plugin_instance.version,
-                ).info("plugin_loaded_successfully")
+                if not os.environ.get('_FLOATCTL_COMPLETE'):
+                    log_plugin_event(
+                        entry_point.name,
+                        "loaded",
+                        version=plugin_instance.version,
+                    ).info("plugin_loaded_successfully")
                 
             except Exception as e:
                 log_plugin_event(
@@ -114,10 +127,11 @@ class PluginManager:
                 plugin_instance = plugin_info["instance"]
                 plugin_instance.register_commands(cli_group)
                 
-                log_plugin_event(
-                    name,
-                    "commands_registered",
-                ).debug("plugin_commands_registered")
+                if not os.environ.get('_FLOATCTL_COMPLETE'):
+                    log_plugin_event(
+                        name,
+                        "commands_registered",
+                    ).debug("plugin_commands_registered")
                 
             except Exception as e:
                 log_plugin_event(

@@ -76,6 +76,20 @@ def get_logger(name: str) -> structlog.BoundLogger:
     Returns:
         Configured structlog BoundLogger
     """
+    import os
+    if os.environ.get('_FLOATCTL_COMPLETE'):
+        # Return a null logger during completion
+        class NullLogger:
+            def debug(self, *args, **kwargs): pass
+            def info(self, *args, **kwargs): pass
+            def warning(self, *args, **kwargs): pass
+            def error(self, *args, **kwargs): pass
+            def critical(self, *args, **kwargs): pass
+            def bind(self, *args, **kwargs): return self
+            def unbind(self, *args, **kwargs): return self
+            def new(self, *args, **kwargs): return self
+            def __call__(self, *args, **kwargs): return self
+        return NullLogger()
     return structlog.get_logger(name)
 
 
@@ -144,6 +158,21 @@ def log_plugin_event(
     Returns:
         Logger with bound context
     """
+    import os
+    if os.environ.get('_FLOATCTL_COMPLETE'):
+        # Return a null logger during completion
+        class NullLogger:
+            def debug(self, *args, **kwargs): pass
+            def info(self, *args, **kwargs): pass
+            def warning(self, *args, **kwargs): pass
+            def error(self, *args, **kwargs): pass
+            def critical(self, *args, **kwargs): pass
+            def bind(self, *args, **kwargs): return self
+            def unbind(self, *args, **kwargs): return self
+            def new(self, *args, **kwargs): return self
+            def __call__(self, *args, **kwargs): return self
+        return NullLogger()
+    
     logger = get_logger(f"floatctl.plugin.{plugin}")
     return logger.bind(
         plugin=plugin,

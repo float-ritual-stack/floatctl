@@ -3,7 +3,7 @@
 import json
 import hashlib
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import re
 
@@ -281,11 +281,20 @@ class ConversationsPlugin(PluginBase):
         self, conversations: List[Dict[str, Any]], after_date: datetime
     ) -> List[Dict[str, Any]]:
         """Filter conversations by creation date."""
+        # Make after_date timezone-aware if it isn't already
+        if after_date.tzinfo is None:
+            # Assume UTC for naive datetimes
+            after_date = after_date.replace(tzinfo=timezone.utc)
+        
         filtered = []
         for conv in conversations:
             created_at = self._parse_datetime(conv.get("created_at"))
-            if created_at and created_at >= after_date:
-                filtered.append(conv)
+            if created_at:
+                # Ensure both datetimes are timezone-aware for comparison
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                if created_at >= after_date:
+                    filtered.append(conv)
         return filtered
     
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
@@ -302,52 +311,219 @@ class ConversationsPlugin(PluginBase):
         except:
             return None
     
-    def _safe_filename(self, text: str, max_length: int = 50) -> str:
-        """Convert text to safe filename."""
+    def _safe_filename(self, text: str, max_length: int = 100) -> str:
+        """Convert text to safe filename, preserving more characters for readability."""
         if not text:
             return "untitled"
-        # Remove special characters and limit length
-        clean = re.sub(r'[^a-zA-Z0-9 \\-_]', '_', text)
-        return clean[:max_length].strip()
+        
+        # First, check if the text already has a date prefix and remove it
+        # Pattern matches YYYY-MM-DD or YYYY_MM_DD at the start
+        date_prefix_pattern = r'^(\d{4}[-_]\d{2}[-_]\d{2})\s*[-_]\s*'
+        text = re.sub(date_prefix_pattern, '', text)
+        
+        # Preserve more characters but still ensure filename safety
+        # Allow letters, numbers, spaces, hyphens, underscores, and parentheses
+        clean = re.sub(r'[^a-zA-Z0-9 \-_()]', '', text)
+        # Replace multiple spaces/underscores with single space
+        clean = re.sub(r'[\s_]+', ' ', clean)
+        # Trim and limit length
+        clean = clean.strip()[:max_length].strip()
+        
+        return clean if clean else "untitled"
+    
+    def _extract_conversation_dates(self, conversation: Dict[str, Any]) -> List[str]:
+        """Extract unique dates when the conversation was active."""
+        dates = set()
+        
+        # Add conversation creation date
+        created_at = self._parse_datetime(conversation.get('created_at'))
+        if created_at:
+            dates.add(created_at.strftime("%Y-%m-%d"))
+        
+        # Add dates from messages
+        messages = conversation.get('chat_messages', [])
+        for msg in messages:
+            # Try to get date from content items first
+            content_items = msg.get('content', [])
+            if content_items and isinstance(content_items, list):
+                for content in content_items:
+                    timestamp = content.get('start_timestamp')
+                    if timestamp:
+                        parsed = self._parse_datetime(timestamp)
+                        if parsed:
+                            dates.add(parsed.strftime("%Y-%m-%d"))
+            
+            # Fall back to message created_at
+            msg_created = msg.get('created_at')
+            if msg_created:
+                parsed = self._parse_datetime(msg_created)
+                if parsed:
+                    dates.add(parsed.strftime("%Y-%m-%d"))
+        
+        return sorted(list(dates))
+    
+    def _extract_patterns(self, text: str, conversation: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract patterns from conversation text with line numbers."""
+        lines = text.split('\n')
+        patterns = {
+            'markers': [],
+            'float_calls': [],
+            'tools_used': set(),
+            'total_lines': len(lines)
+        }
+        
+        # Extract markers with line numbers
+        marker_pattern = re.compile(r'(\w+)::\s*(.+?)(?=\n|$)', re.MULTILINE | re.DOTALL)
+        for i, line in enumerate(lines, 1):
+            # Check for markers in this line
+            matches = marker_pattern.finditer(line)
+            for match in matches:
+                marker_type = match.group(1)
+                content = match.group(2).strip()
+                
+                # Check if this marker continues on next lines
+                # Look for continuation (lines that don't start with a new marker)
+                line_nums = [i]
+                if i < len(lines):
+                    j = i
+                    while j < len(lines):
+                        next_line = lines[j]
+                        # If next line is indented or doesn't contain a new marker, it's a continuation
+                        if next_line and not re.match(r'^\s*\w+::', next_line) and (next_line.startswith(' ') or next_line.startswith('\t')):
+                            line_nums.append(j + 1)
+                            content += ' ' + next_line.strip()
+                            j += 1
+                        else:
+                            break
+                
+                patterns['markers'].append({
+                    'type': marker_type,
+                    'content': content,
+                    'lines': line_nums
+                })
+        
+        # Extract float calls with line numbers
+        float_pattern = re.compile(r'(float\.[\w.]+)\((.*?)\)')
+        for i, line in enumerate(lines, 1):
+            matches = float_pattern.finditer(line)
+            for match in matches:
+                call = match.group(1)
+                args = match.group(2).strip()
+                patterns['float_calls'].append({
+                    'call': call,
+                    'content': args,
+                    'lines': [i]
+                })
+        
+        # Extract tool usage from conversation content
+        messages = conversation.get('chat_messages', [])
+        for msg in messages:
+            content_items = msg.get('content', [])
+            if isinstance(content_items, list):
+                for item in content_items:
+                    if item.get('type') == 'tool_use':
+                        tool_name = item.get('name', 'unknown')
+                        patterns['tools_used'].add(tool_name)
+        
+        # Convert tools_used set to sorted list
+        patterns['tools_used'] = sorted(list(patterns['tools_used']))
+        
+        return patterns
     
     def _format_conversation_markdown(self, conversation: Dict[str, Any]) -> str:
         """Format conversation as markdown."""
-        lines = []
+        # First, generate the main content to extract patterns from it
+        content_lines = []
         
         # Header
         title = conversation.get('name', 'Untitled Conversation')
-        lines.append(f"# {title}")
-        lines.append("")
-        
-        # Metadata
-        lines.append("## Metadata")
-        lines.append(f"- **ID**: `{conversation.get('uuid', 'unknown')}`")
-        lines.append(f"- **Created**: {conversation.get('created_at', 'unknown')}")
-        lines.append(f"- **Updated**: {conversation.get('updated_at', 'unknown')}")
-        lines.append("")
+        content_lines.append(f"# {title}")
+        content_lines.append("")
         
         # Messages
-        lines.append("## Conversation")
-        lines.append("")
+        content_lines.append("## Conversation")
+        content_lines.append("")
         
         messages = conversation.get('chat_messages', [])
         for msg in messages:
             sender = msg.get('sender', 'unknown')
             if sender == 'human':
-                lines.append("### 👤 Human")
+                content_lines.append("### 👤 Human")
             elif sender == 'assistant':
-                lines.append("### 🤖 Assistant")
+                content_lines.append("### 🤖 Assistant")
             else:
-                lines.append(f"### ❓ {sender}")
+                content_lines.append(f"### ❓ {sender}")
             
-            lines.append("")
+            # Add start_time metadata from the first content item if available
+            content_items = msg.get('content', [])
+            if content_items and isinstance(content_items, list) and len(content_items) > 0:
+                first_content = content_items[0]
+                start_timestamp = first_content.get('start_timestamp')
+                if start_timestamp:
+                    content_lines.append(f"- start_time:: {start_timestamp}")
+            
+            content_lines.append("")
             content = msg.get('text', '')
-            lines.append(content)
-            lines.append("")
-            lines.append("---")
-            lines.append("")
+            content_lines.append(content)
+            content_lines.append("")
+            content_lines.append("---")
+            content_lines.append("")
         
-        return "\\n".join(lines)
+        # Join content to extract patterns
+        content_text = "\n".join(content_lines)
+        
+        # Extract patterns from the content
+        patterns = self._extract_patterns(content_text, conversation)
+        
+        # Now build the full document with YAML frontmatter
+        lines = []
+        
+        # YAML frontmatter
+        lines.append("---")
+        lines.append(f"conversation_title: \"{conversation.get('name', 'Untitled Conversation')}\"")
+        lines.append(f"conversation_id: {conversation.get('uuid', 'unknown')}")
+        lines.append(f"conversation_src: https://claude.ai/chat/{conversation.get('uuid', 'unknown')}")
+        lines.append(f"conversation_created: {conversation.get('created_at', 'unknown')}")
+        lines.append(f"conversation_updated: {conversation.get('updated_at', 'unknown')}")
+        
+        # Extract unique dates from messages
+        conversation_dates = self._extract_conversation_dates(conversation)
+        if conversation_dates:
+            lines.append("conversation_dates:")
+            for date in conversation_dates:
+                lines.append(f"  - {date}")
+        
+        # Add pattern extraction results
+        if patterns['markers']:
+            lines.append("markers:")
+            for marker in patterns['markers']:
+                lines.append(f"  - type: \"{marker['type']}\"")
+                # Escape quotes in content for YAML
+                content = marker['content'].replace('"', '\\"')
+                lines.append(f"    content: \"{content}\"")
+                lines.append(f"    lines: {marker['lines']}")
+        
+        if patterns['float_calls']:
+            lines.append("float_calls:")
+            for call in patterns['float_calls']:
+                lines.append(f"  - call: \"{call['call']}\"")
+                # Escape quotes in content for YAML
+                content = call['content'].replace('"', '\\"')
+                lines.append(f"    content: \"{content}\"")
+                lines.append(f"    lines: {call['lines']}")
+        
+        if patterns['tools_used']:
+            lines.append(f"tools_used: {patterns['tools_used']}")
+        
+        lines.append(f"total_lines: {patterns['total_lines']}")
+        
+        lines.append("---")
+        lines.append("")
+        
+        # Add the content
+        lines.extend(content_lines)
+        
+        return "\n".join(lines)
     
     def _process_conversation(
         self,
@@ -357,26 +533,35 @@ class ConversationsPlugin(PluginBase):
         by_date: bool,
     ) -> Path:
         """Process a single conversation and return the output path."""
-        # Generate timestamp
+        # Get creation date
         created_at = self._parse_datetime(conversation.get('created_at'))
         if created_at:
-            timestamp = created_at.strftime("%Y%m%d_%H%M%S")
+            date_prefix = created_at.strftime("%Y-%m-%d")
         else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            date_prefix = datetime.now().strftime("%Y-%m-%d")
         
-        # Generate safe filename
+        # Generate safe filename (which strips any existing date prefix)
         title = self._safe_filename(conversation.get('name', 'untitled'))
-        uuid = conversation.get('uuid', 'unknown')[:8]
-        filename = f"{timestamp}_{title}_{uuid}"
+        
+        # Create filename with date prefix
+        filename = f"{date_prefix} - {title}"
         
         # Determine output path
         if by_date and created_at:
             date_str = created_at.strftime("%Y-%m-%d")
             date_dir = output_dir / date_str
             date_dir.mkdir(exist_ok=True)
-            base_path = date_dir / filename
+            base_dir = date_dir
         else:
-            base_path = output_dir / filename
+            base_dir = output_dir
+        
+        # Handle naming conflicts by appending a number
+        base_path = base_dir / filename
+        counter = 1
+        while (base_path.with_suffix('.json').exists() or 
+               base_path.with_suffix('.md').exists()):
+            base_path = base_dir / f"{filename}-{counter}"
+            counter += 1
         
         # Save in requested format
         if format in ["json", "both"]:
@@ -399,7 +584,7 @@ class ConversationsPlugin(PluginBase):
         by_date: bool,
     ) -> None:
         """Show what would be processed in a dry run."""
-        console.print("\\n[yellow]DRY RUN - No files will be created[/yellow]\\n")
+        console.print("\n[yellow]DRY RUN - No files will be created[/yellow]\n")
         
         # Summary statistics
         total = len(conversations)
@@ -416,22 +601,21 @@ class ConversationsPlugin(PluginBase):
         console.print(f"Format: [cyan]{format}[/cyan]")
         
         if by_date:
-            console.print(f"\\nConversations by date:")
+            console.print(f"\nConversations by date:")
             for date, count in sorted(by_date_count.items()):
                 console.print(f"  {date}: {count} conversations")
         
         # Show sample filenames
-        console.print(f"\\nSample output filenames:")
+        console.print(f"\nSample output filenames:")
         for conv in conversations[:5]:
             created_at = self._parse_datetime(conv.get('created_at'))
             if created_at:
-                timestamp = created_at.strftime("%Y%m%d_%H%M%S")
+                date_prefix = created_at.strftime("%Y-%m-%d")
             else:
-                timestamp = "YYYYMMDD_HHMMSS"
+                date_prefix = "YYYY-MM-DD"
             
             title = self._safe_filename(conv.get('name', 'untitled'))
-            uuid = conversation.get('uuid', 'unknown')[:8]
-            filename = f"{timestamp}_{title}_{uuid}"
+            filename = f"{date_prefix} - {title}"
             
             if format == "json":
                 console.print(f"  {filename}.json")

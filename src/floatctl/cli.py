@@ -1,6 +1,36 @@
 """Main CLI entry point for FloatCtl."""
 
+import os
 import sys
+
+# CRITICAL: Monkey-patch structlog BEFORE any other imports if generating completions
+if os.environ.get('_FLOATCTL_COMPLETE'):
+    import logging
+    logging.disable(logging.CRITICAL)
+    
+    import structlog
+    
+    # Monkey-patch structlog completely before any floatctl imports
+    class NullLogger:
+        def debug(self, *args, **kwargs): pass
+        def info(self, *args, **kwargs): pass
+        def warning(self, *args, **kwargs): pass
+        def error(self, *args, **kwargs): pass
+        def critical(self, *args, **kwargs): pass
+        def bind(self, *args, **kwargs): return self
+        def unbind(self, *args, **kwargs): return self
+        def new(self, *args, **kwargs): return self
+        def __call__(self, *args, **kwargs): return self
+    
+    # Replace structlog functions entirely
+    structlog.get_logger = lambda *args, **kwargs: NullLogger()
+    structlog.configure(
+        processors=[],
+        logger_factory=lambda: NullLogger(),
+        cache_logger_on_first_use=False,
+    )
+
+# Now safe to import everything else
 from pathlib import Path
 from typing import Optional
 
@@ -125,14 +155,15 @@ def create_cli_app() -> click.Group:
         if output_dir:
             ctx.obj["config"].output_dir = output_dir
         
-        # Setup logging
-        setup_logging(ctx.obj["config"])
+        # Setup logging (skip if generating completions)
+        if not os.environ.get('_FLOATCTL_COMPLETE'):
+            setup_logging(ctx.obj["config"])
         
         # Store plugin manager in context (it's already loaded)
         ctx.obj["plugin_manager"] = cli.plugin_manager
         
-        # If no command provided, show help
-        if ctx.invoked_subcommand is None:
+        # If no command provided, show help (unless generating completions)
+        if ctx.invoked_subcommand is None and not os.environ.get('_FLOATCTL_COMPLETE'):
             show_welcome()
             click.echo(ctx.get_help())
     
@@ -225,6 +256,40 @@ def create_cli_app() -> click.Group:
             )
         )
     
+    # Add completion command
+    @cli.command()
+    @click.argument('shell', type=click.Choice(['bash', 'zsh', 'fish']))
+    def completion(shell: str) -> None:
+        """Generate shell completion script.
+        
+        Examples:
+            # For zsh (add to ~/.zshrc):
+            eval "$(floatctl completion zsh)"
+            
+            # Or save to a file:
+            floatctl completion zsh > ~/.config/floatctl/completion.zsh
+            source ~/.config/floatctl/completion.zsh
+        """
+        import subprocess
+        import os
+        
+        # Get the shell completion script
+        env = os.environ.copy()
+        env['_FLOATCTL_COMPLETE'] = f'{shell}_source'
+        
+        # Run floatctl with the completion environment variable
+        result = subprocess.run(
+            [sys.executable, '-m', 'floatctl'],
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.stdout:
+            click.echo(result.stdout)
+        else:
+            click.echo(f"Error generating {shell} completion: {result.stderr}", err=True)
+    
     return cli
 
 
@@ -241,10 +306,11 @@ def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
         # Register plugin commands with CLI
         plugin_manager.register_cli_commands(cli_app)
         
-        structlog.get_logger().info(
-            "plugins_loaded_successfully",
-            count=len(plugin_manager.plugins)
-        )
+        if not os.environ.get('_FLOATCTL_COMPLETE'):
+            structlog.get_logger().info(
+                "plugins_loaded_successfully",
+                count=len(plugin_manager.plugins)
+            )
         
     except Exception as e:
         structlog.get_logger().error("plugin_loading_failed", error=str(e))
