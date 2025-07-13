@@ -5,12 +5,79 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.theme import Theme
 from typing import Dict, Any, List, Optional
+import re
 
 from floatctl.plugin_manager import PluginBase
 from floatctl.floatql import FloatQLParser, FloatQLTranslator
 
-console = Console()
+# Create custom theme for FLOAT content
+float_theme = Theme({
+    "markdown.h1": "bold magenta",
+    "markdown.h2": "bold cyan", 
+    "markdown.h3": "bold yellow",
+    "markdown.code": "dim white on grey23",
+    "markdown.link": "blue underline",
+    "markdown.list": "white",
+    "markdown.item": "white",
+    "markdown.item.bullet": "cyan"
+})
+
+console = Console(theme=float_theme)
+
+
+def _style_float_content(content: str) -> str:
+    """Apply FLOAT-specific styling to content before markdown rendering."""
+    # Style [[wiki-links]] - but preserve them for markdown rendering
+    # We'll let markdown handle the link rendering
+    
+    # Style :: metadata markers
+    content = re.sub(r'(\w+)::', r'**\1::**', content)
+    
+    # Style CB-IDs
+    content = re.sub(r'(CB-\d{8}-\d{4}-[A-Z0-9]+)', r'`\1`', content)
+    
+    # Add spacing around headers
+    content = re.sub(r'\n(#{1,3} [^\n]+)', r'\n\n\1', content)
+    content = re.sub(r'(#{1,3} [^\n]+)\n', r'\1\n\n', content)
+    
+    return content
+
+
+def _format_bridge_metadata(content: str) -> tuple:
+    """Extract and format bridge metadata separately.
+    
+    Returns:
+        Tuple of (metadata_lines, remaining_content)
+    """
+    lines = content.split('\n')
+    
+    metadata_lines = []
+    content_start = 0
+    
+    # Skip title if it starts with #
+    if lines and lines[0].strip().startswith('#'):
+        content_start = 1
+    
+    # Extract metadata lines (continuous :: lines at the start)
+    for i, line in enumerate(lines[content_start:], content_start):
+        stripped = line.strip()
+        if '::' in stripped and not stripped.startswith('#'):
+            # This is a metadata line
+            metadata_lines.append(stripped)
+        elif stripped == '':
+            # Empty line, might be separator
+            continue
+        else:
+            # First non-metadata content line
+            content_start = i
+            break
+    
+    # Join remaining content
+    remaining = '\n'.join(lines[content_start:]) if content_start < len(lines) else ''
+    
+    return metadata_lines, remaining
 
 
 class ChromaPlugin(PluginBase):
@@ -262,8 +329,10 @@ def peek(collection_name: str, limit: int, show_metadata: bool, full: bool, rend
             if doc:
                 content = doc if full else (doc[:500] + "..." if len(doc) > 500 else doc)
                 if rendered:
-                    md = Markdown(content)
-                    console.print(Panel(md, border_style="dim", title="Content"))
+                    # Style FLOAT content
+                    styled_content = _style_float_content(content)
+                    md = Markdown(styled_content)
+                    console.print(Panel(md, border_style="dim", title="Content", padding=(1, 2)))
                 else:
                     console.print(Panel(content, border_style="dim", title="Content"))
         
@@ -638,9 +707,33 @@ def floatql(query: str, collections: Optional[str], limit: int, explain: bool, f
             
             # Render content
             if rendered:
-                # Create markdown object and render it
-                md = Markdown(content.strip())
-                console.print(Panel(md, border_style="dim"))
+                # Extract title if present
+                lines = content.strip().split('\n')
+                title = None
+                content_to_render = content.strip()
+                
+                if lines and lines[0].strip().startswith('#'):
+                    # Extract title for panel
+                    title = lines[0].strip('#').strip()
+                    # Remove title from content
+                    content_to_render = '\n'.join(lines[1:])
+                
+                # Extract and display metadata separately
+                metadata_lines, remaining_content = _format_bridge_metadata(content_to_render)
+                
+                if metadata_lines:
+                    # Display metadata in its own panel
+                    metadata_text = '\n'.join(f"[dim]{line}[/dim]" for line in metadata_lines)
+                    console.print(Panel(metadata_text, title="Metadata", border_style="blue", padding=(0, 1)))
+                    console.print()  # spacing
+                
+                # Style and render main content
+                styled_content = _style_float_content(remaining_content.strip())
+                md = Markdown(styled_content)
+                
+                # Use title if we extracted one
+                panel_title = title if title else None
+                console.print(Panel(md, border_style="dim", padding=(1, 2), title=panel_title))
             else:
                 # Plain text display
                 console.print(Panel(content.strip(), border_style="dim"))
