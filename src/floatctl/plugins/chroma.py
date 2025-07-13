@@ -4,6 +4,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.markdown import Markdown
 from typing import Dict, Any, List, Optional
 
 from floatctl.plugin_manager import PluginBase
@@ -206,7 +207,8 @@ def info(collection_name: str):
 @click.option('--limit', '-l', default=5, help='Number of documents to peek at')
 @click.option('--show-metadata', '-m', is_flag=True, help='Show document metadata')
 @click.option('--full', '-f', is_flag=True, help='Show full document content')
-def peek(collection_name: str, limit: int, show_metadata: bool, full: bool):
+@click.option('--rendered', '-r', is_flag=True, help='Render markdown content with formatting')
+def peek(collection_name: str, limit: int, show_metadata: bool, full: bool, rendered: bool):
     """Peek at sample documents from a collection.
     
     Shows a preview of documents to understand collection content.
@@ -259,7 +261,11 @@ def peek(collection_name: str, limit: int, show_metadata: bool, full: bool):
             # Show document content
             if doc:
                 content = doc if full else (doc[:500] + "..." if len(doc) > 500 else doc)
-                console.print(Panel(content, border_style="dim", title="Content"))
+                if rendered:
+                    md = Markdown(content)
+                    console.print(Panel(md, border_style="dim", title="Content"))
+                else:
+                    console.print(Panel(content, border_style="dim", title="Content"))
         
     except Exception as e:
         console.print(f"[red]Error peeking at collection: {e}[/red]")
@@ -500,7 +506,8 @@ def recent(collection_name: str, hours: Optional[int], days: Optional[int], limi
 @click.option('--explain', '-e', is_flag=True, help='Show query parsing explanation')
 @click.option('--full', '-f', is_flag=True, help='Show full document content')
 @click.option('--preview-length', '-p', default=500, help='Length of content preview (default: 500)')
-def floatql(query: str, collections: Optional[str], limit: int, explain: bool, full: bool, preview_length: int):
+@click.option('--rendered', '-r', is_flag=True, help='Render markdown content with formatting')
+def floatql(query: str, collections: Optional[str], limit: int, explain: bool, full: bool, preview_length: int, rendered: bool):
     """Query using FloatQL natural language patterns.
     
     FloatQL understands FLOAT patterns and natural language:
@@ -624,9 +631,19 @@ def floatql(query: str, collections: Optional[str], limit: int, explain: bool, f
                         if result['document'][i] in ['\n', '.', '!', '?']:
                             content = result['document'][:i+1]
                             break
-                    content += "\n\n[dim]... (use --full to see complete document)[/dim]"
+                    if not rendered:
+                        content += "\n\n[dim]... (use --full to see complete document)[/dim]"
+                    else:
+                        content += "\n\n*... (use --full to see complete document)*"
             
-            console.print(Panel(content.strip(), border_style="dim"))
+            # Render content
+            if rendered:
+                # Create markdown object and render it
+                md = Markdown(content.strip())
+                console.print(Panel(md, border_style="dim"))
+            else:
+                # Plain text display
+                console.print(Panel(content.strip(), border_style="dim"))
         
     except Exception as e:
         console.print(f"[red]Error executing FloatQL query: {e}[/red]")
