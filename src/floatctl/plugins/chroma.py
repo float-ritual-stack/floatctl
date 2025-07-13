@@ -272,7 +272,8 @@ def peek(collection_name: str, limit: int, show_metadata: bool, full: bool):
 @click.option('--limit', '-l', default=5, help='Number of results to return')
 @click.option('--show-distance', '-d', is_flag=True, help='Show similarity distances')
 @click.option('--metadata-filter', '-m', help='Filter by metadata (JSON format)')
-def query(collection_name: str, query_text: str, limit: int, show_distance: bool, metadata_filter: Optional[str]):
+@click.option('--preview-length', '-p', default=300, help='Length of content preview (default: 300)')
+def query(collection_name: str, query_text: str, limit: int, show_distance: bool, metadata_filter: Optional[str], preview_length: int):
     """Query a collection with text search.
     
     Performs semantic search on collection documents.
@@ -334,11 +335,22 @@ def query(collection_name: str, query_text: str, limit: int, show_distance: bool
             results['distances'][0],
             results['metadatas'][0]
         )):
-            # Create content preview
-            preview = doc[:150] + "..." if len(doc) > 150 else doc
-            preview = preview.replace('\n', ' ')
+            # Create content preview with newlines preserved
+            if len(doc) > preview_length:
+                preview = doc[:preview_length]
+                # Find a good break point
+                for i in range(min(preview_length + 50, len(doc)), preview_length, -1):
+                    if doc[i] in ['\n', '.', '!', '?']:
+                        preview = doc[:i+1]
+                        break
+                preview += "..."
+            else:
+                preview = doc
             
-            row = [str(i+1), preview]
+            # For table display, replace newlines with spaces but keep more content
+            table_preview = preview.replace('\n', ' ')
+            
+            row = [str(i+1), table_preview]
             if show_distance:
                 row.append(f"{distance:.4f}")
             
@@ -486,7 +498,9 @@ def recent(collection_name: str, hours: Optional[int], days: Optional[int], limi
 @click.option('--collections', '-c', help='Comma-separated list of collections')
 @click.option('--limit', '-l', default=5, help='Number of results per collection')
 @click.option('--explain', '-e', is_flag=True, help='Show query parsing explanation')
-def floatql(query: str, collections: Optional[str], limit: int, explain: bool):
+@click.option('--full', '-f', is_flag=True, help='Show full document content')
+@click.option('--preview-length', '-p', default=500, help='Length of content preview (default: 500)')
+def floatql(query: str, collections: Optional[str], limit: int, explain: bool, full: bool, preview_length: int):
     """Query using FloatQL natural language patterns.
     
     FloatQL understands FLOAT patterns and natural language:
@@ -600,8 +614,19 @@ def floatql(query: str, collections: Optional[str], limit: int, explain: bool):
                     console.print(f"[dim]{', '.join(meta_parts[:3])}[/dim]")
             
             # Show content preview
-            preview = result['document'][:200] + "..." if len(result['document']) > 200 else result['document']
-            console.print(Panel(preview.strip(), border_style="dim"))
+            if full:
+                content = result['document']
+            else:
+                content = result['document'][:preview_length]
+                if len(result['document']) > preview_length:
+                    # Find a good break point (end of line or sentence)
+                    for i in range(min(preview_length + 100, len(result['document'])), preview_length, -1):
+                        if result['document'][i] in ['\n', '.', '!', '?']:
+                            content = result['document'][:i+1]
+                            break
+                    content += "\n\n[dim]... (use --full to see complete document)[/dim]"
+            
+            console.print(Panel(content.strip(), border_style="dim"))
         
     except Exception as e:
         console.print(f"[red]Error executing FloatQL query: {e}[/red]")
