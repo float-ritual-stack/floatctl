@@ -2,6 +2,55 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Workflow & Issue Tracking
+
+### Before Starting Work
+1. **Check existing issues**: `gh issue list --repo evanschultz/floatctl`
+2. **Create/reference issue**: Every change should have an issue number
+3. **Create feature branch**: 
+   ```bash
+   # Format: type/issue-description
+   git checkout -b fix/42-toolbar-custom-domains
+   git checkout -b feature/43-forest-diagnostics
+   git checkout -b chore/44-consolidate-plugins
+   ```
+
+### Commit Message Format
+```
+type(scope): description (#issue)
+
+[optional body]
+
+# Examples:
+fix(forest): toolbar display on custom domains (#42)
+feat(forest): add diagnostics command (#43)
+docs(plugins): clarify which note plugin to use
+chore(plugins): archive old note implementations (#44)
+```
+
+### Types
+- **fix**: Bug fixes
+- **feat**: New features
+- **docs**: Documentation only changes
+- **chore**: Maintenance, refactoring, cleanup
+- **test**: Adding missing tests
+- **perf**: Performance improvements
+
+### Issue Management
+- **One issue per bug/feature** - Keep them focused
+- **Link PRs to issues**: Use "Fixes #42" in PR description
+- **Update issue status**: Comment progress on the issue
+- **Small PRs**: One issue = one PR when possible
+
+### Development Flow
+1. Create/claim issue
+2. Create feature branch from main
+3. Make focused changes
+4. Test locally: `uv run floatctl [command]`
+5. Commit with proper message
+6. Push and create PR
+7. Reference issue in PR
+
 ## Session Summary - 2025-07-13
 
 ### Completed Features
@@ -99,12 +148,32 @@ FloatCtl uses a plugin architecture that allows for extensible functionality. Th
    - `database.py`: SQLite tracking of file operations using SQLAlchemy
    - `logging.py`: Structured JSON logging with structlog
 
+### Plugin-Specific Documentation
+
+Each plugin has its own CLAUDE.md file with detailed guidance:
+
+- **Chroma Plugin**: `src/floatctl/plugins/chroma/CLAUDE.md`
+  - FloatQL query patterns and syntax
+  - Collection routing strategies
+  - Query optimization tips
+  
+- **Conversations Plugin**: `src/floatctl/plugins/conversations/CLAUDE.md`
+  - Pattern extraction details
+  - File naming conventions
+  - Tool call handling
+  
+- **Forest Plugin**: `src/floatctl/plugins/forest/CLAUDE.md`
+  - V0 project management
+  - Toolbar injection workflow
+  - Deployment strategies
+
 ### Plugin Development
 To create a new plugin:
 
 1. Inherit from `PluginBase` in `plugin_manager.py`
 2. Implement the `register_commands()` method
-3. Add plugin entry point in `pyproject.toml`:
+3. Create a plugin-specific `CLAUDE.md` in your plugin directory
+4. Add plugin entry point in `pyproject.toml`:
    ```toml
    [project.entry-points."floatctl.plugins"]
    your_plugin = "floatctl.plugins.your_plugin:YourPlugin"

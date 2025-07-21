@@ -430,10 +430,58 @@ class ConversationsPlugin(PluginBase):
         
         return patterns
     
-    def _format_conversation_markdown(self, conversation: Dict[str, Any]) -> str:
-        """Format conversation as markdown."""
+    def _extract_and_save_tool_calls(self, conversation: Dict[str, Any], base_path: Path) -> Optional[Path]:
+        """Extract tool calls from conversation and save to JSONL file."""
+        tool_calls = []
+        
+        messages = conversation.get('chat_messages', [])
+        for msg_idx, msg in enumerate(messages):
+            content_items = msg.get('content', [])
+            if isinstance(content_items, list):
+                for item_idx, item in enumerate(content_items):
+                    if item.get('type') == 'tool_use':
+                        tool_call = {
+                            'id': item.get('id'),
+                            'type': item.get('type'),
+                            'name': item.get('name'),
+                            'input': item.get('input', {}),
+                            'message_index': msg_idx,
+                            'content_index': item_idx,
+                            'sender': msg.get('sender'),
+                            'created_at': msg.get('created_at')
+                        }
+                        tool_calls.append(tool_call)
+                    elif item.get('type') == 'tool_result':
+                        # Also capture tool results
+                        tool_result = {
+                            'id': item.get('tool_use_id'),
+                            'type': item.get('type'),
+                            'output': item.get('output'),
+                            'is_error': item.get('is_error', False),
+                            'message_index': msg_idx,
+                            'content_index': item_idx,
+                            'sender': msg.get('sender'),
+                            'created_at': msg.get('created_at')
+                        }
+                        tool_calls.append(tool_result)
+        
+        if not tool_calls:
+            return None
+        
+        # Save tool calls to JSONL file
+        jsonl_path = base_path.with_suffix('.tool_calls.jsonl')
+        with open(jsonl_path, 'w') as f:
+            for idx, tool_call in enumerate(tool_calls):
+                tool_call['line_number'] = idx + 1  # 1-based line numbers
+                f.write(json.dumps(tool_call) + '\n')
+        
+        return jsonl_path
+    
+    def _format_conversation_markdown(self, conversation: Dict[str, Any], tool_calls_file: Optional[Path]) -> str:
+        """Format conversation as markdown with tool call references."""
         # First, generate the main content to extract patterns from it
         content_lines = []
+        tool_call_counter = 1  # Track which tool call we're on
         
         # Header
         title = conversation.get('name', 'Untitled Conversation')
@@ -463,8 +511,28 @@ class ConversationsPlugin(PluginBase):
                     content_lines.append(f"- start_time:: {start_timestamp}")
             
             content_lines.append("")
-            content = msg.get('text', '')
-            content_lines.append(content)
+            
+            # Process content items
+            if content_items and isinstance(content_items, list):
+                for item in content_items:
+                    if item.get('type') == 'text':
+                        content = item.get('text', '')
+                        content_lines.append(content)
+                    elif item.get('type') == 'tool_use' and tool_calls_file:
+                        # Add tool call reference using safe format
+                        tool_id = item.get('id', f'tool_call_{tool_call_counter}')
+                        content_lines.append(f"{{Tool Call: {tool_id} → {tool_calls_file.name}:{tool_call_counter}}}")
+                        tool_call_counter += 1
+                    elif item.get('type') == 'tool_result' and tool_calls_file:
+                        # Add tool result reference
+                        tool_id = item.get('tool_use_id', f'tool_result_{tool_call_counter}')
+                        content_lines.append(f"{{Tool Result: {tool_id} → {tool_calls_file.name}:{tool_call_counter}}}")
+                        tool_call_counter += 1
+            else:
+                # Fallback to old text field
+                content = msg.get('text', '')
+                content_lines.append(content)
+            
             content_lines.append("")
             content_lines.append("---")
             content_lines.append("")
@@ -569,9 +637,14 @@ class ConversationsPlugin(PluginBase):
             with open(json_path, 'w') as f:
                 json.dump(conversation, f, indent=2)
         
+        # Extract tool calls if we're generating markdown
+        tool_calls_file = None
+        if format in ["markdown", "both"]:
+            tool_calls_file = self._extract_and_save_tool_calls(conversation, base_path)
+        
         if format in ["markdown", "both"]:
             md_path = base_path.with_suffix('.md')
-            markdown = self._format_conversation_markdown(conversation)
+            markdown = self._format_conversation_markdown(conversation, tool_calls_file)
             md_path.write_text(markdown)
         
         return base_path
