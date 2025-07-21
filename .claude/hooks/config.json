@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "enablePythonBridge": true,
+    "bridgeTimeout": 300000,
+    "logLevel": "info",
+    "consciousnessPatternThreshold": 0.8,
+    "agentCoordinationThreshold": 3
+  },
+  "python": {
+    "floatctlPath": "/Users/evan/projects/float-workspace/offical-exports/data-2025-06-28-07-14-08/floatctl-py",
+    "enhancedReviewPath": "/Users/evan/.claude/commands/float-convo-review",
+    "executable": "python3"
+  },
+  "workspace": {
+    "sessionsDir": "/Users/evan/.claude/hooks/sessions",
+    "logDir": "/Users/evan/.claude/hooks/logs",
+    "tempDir": "/Users/evan/.claude/temp",
+    "cleanupAge": 72
+  }
+}
