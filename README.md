@@ -13,6 +13,9 @@ uv sync
 
 # Install in development mode
 uv pip install -e ".[dev]"
+
+# Optional: Install REPL support
+uv pip install -e ".[repl]"
 ```
 
 ### Global Access
@@ -60,13 +63,20 @@ source ~/.zshrc  # or ~/.bashrc
 ### Basic Conversation Splitting
 
 ```bash
-# Split a conversation export into individual files
+# Split a conversation export into individual files (outputs to ./output/conversations)
+floatctl conversations split conversations.json
+
+# Works with relative paths from any directory
+cd /path/to/data/directory
+floatctl conversations split ./conversations.json
+
+# Specify custom output directory
 floatctl conversations split conversations.json --output-dir ./output
 
 # Export as markdown instead of JSON
 floatctl conversations split conversations.json --format markdown
 
-# Export both JSON and markdown
+# Export both JSON and markdown (creates .md and .tool_calls.jsonl files)
 floatctl conversations split conversations.json --format both
 
 # Organize by date
@@ -147,6 +157,21 @@ grep -A2 "float_calls:" output/*.md | grep "call:"
 grep -l "2025-07-12" output/*.md
 ```
 
+### Tool Call Extraction
+
+When exporting to markdown format with `--format markdown` or `--format both`, FloatCtl automatically extracts tool calls to separate JSONL files:
+
+- Tool calls and results are saved to `.tool_calls.jsonl` files
+- Each entry includes the tool name, input, output, and line reference
+- In the markdown, tool calls are replaced with references: `{Tool Call: id → filename:line}`
+- This keeps markdown files readable while preserving all tool interaction data
+
+Example tool calls file:
+```json
+{"id": "toolu_01ABC", "type": "tool_use", "name": "Read", "input": {"file_path": "/path/to/file"}, "message_index": 1, "content_index": 1, "sender": "assistant", "created_at": "2025-07-13T10:00:05Z", "line_number": 1}
+{"id": "toolu_01ABC", "type": "tool_result", "output": "File contents here...", "is_error": false, "message_index": 1, "content_index": 2, "sender": "assistant", "created_at": "2025-07-13T10:00:06Z", "line_number": 2}
+```
+
 ### Filename Generation
 
 FloatCtl generates clean, readable filenames:
@@ -154,6 +179,134 @@ FloatCtl generates clean, readable filenames:
 - Example: `2025-07-13 - Consciousness Bootstrap Protocol.md`
 - Handles naming conflicts by appending numbers
 - Strips redundant date prefixes from titles
+
+### Chroma Vector Database Integration
+
+FloatCtl includes a powerful Chroma plugin for working with vector databases:
+
+```bash
+# List all collections
+floatctl chroma list
+
+# Get detailed collection info
+floatctl chroma info float_bridges
+
+# Peek at collection contents
+floatctl chroma peek active_context_stream --limit 5
+
+# Query recent documents
+floatctl chroma recent float_highlights --limit 10
+
+# Natural language queries with FloatQL
+floatctl chroma floatql "ctx:: meeting with nick"
+floatctl chroma floatql "[sysop::] infrastructure updates"
+floatctl chroma floatql "bridge::CB-20250713-0130-M3SS"
+floatctl chroma floatql "highlights from yesterday"
+
+# Rendered markdown output for better readability
+floatctl chroma floatql "bridge::CB-20250713" --rendered
+floatctl chroma peek float_bridges --rendered --full
+```
+
+#### FloatQL Query Language
+
+FloatQL supports natural language queries with FLOAT-specific patterns:
+
+- **Markers**: `ctx::`, `highlight::`, `mode::` - Find documents with these annotations
+- **Personas**: `[sysop::]`, `[karen::]`, `[evna::]` - Filter by persona
+- **Bridge IDs**: `bridge::CB-YYYYMMDD-HHMM-XXXX` - Find specific bridges
+- **Temporal**: "yesterday", "last week", "July 13" - Time-based filtering
+- **Collections**: Automatically detects and routes to appropriate collections
+
+### Interactive Notes & REPL
+
+FloatCtl offers two interactive note-taking interfaces:
+
+#### REPL Mode (Low Friction)
+
+```bash
+floatctl repl
+```
+
+The original fast-flow interface with:
+- **Minimal UI**: Full-screen, no popups, just you and your thoughts
+- **Smart parsing**: ctx::, todo::, highlight:: markers
+- **REPL mode**: Ctrl+R toggles auto-execution of code blocks
+- **Natural indentation**: Tab/Shift+Tab to organize hierarchically
+- **Alt+↑/↓ navigation**: Move through entries quickly
+- **Shell commands**: !command executes in shell
+- **FloatCtl integration**: floatctl() available in Python environment
+- **Persistent storage**: ~/.floatctl/repl_notes/
+
+Example workflow:
+```
+/ ctx:: working on parser optimization
+/ todo:: benchmark current implementation
+/ ```code
+import time
+start = time.time()
+# ... code here
+print(f"Elapsed: {time.time() - start}s")
+```
+
+Press Ctrl+R to enable REPL mode - code blocks execute automatically!
+
+#### Textual Mode (Feature Rich)
+
+```bash
+floatctl float
+```
+
+A more visual interface built with Textual:
+- **Tree view**: Hierarchical display of entries
+- **Command palette**: Ctrl+P for floatctl commands  
+- **Visual styling**: Syntax highlighting, type indicators
+- **Mouse support**: Click to select entries
+- **Alt+↑/↓ navigation**: Move through tree
+- **Ctrl+←/→ indentation**: Organize your thoughts
+
+#### Simplified Mode (Low Friction)
+
+```bash
+floatctl float-simple
+```
+
+The distilled essence of FLOAT Notes based on maw-held-stories insights:
+- **Same-level insertion**: New entries go at the same indent level as selected
+- **Tab/Shift+Tab**: Indent/unindent selected entries naturally
+- **No popups**: Silent saves, no interruptions
+- **Visual indicator**: Shows exactly where next entry will appear
+- **Minimal UI**: Just your thoughts and an input field
+- **Fast flow**: Type → Enter → Keep going
+
+### Forest Plugin - V0 Project Management
+
+The forest plugin manages V0 projects with enhanced toolbar injection:
+
+```bash
+# Update toolbars across all projects
+floatctl forest update-toolbar --all
+
+# Update specific number of projects
+floatctl forest update-toolbar -n 20
+
+# Parallel updates for speed
+floatctl forest update-toolbar --all --parallel 5
+
+# Filter projects by pattern
+floatctl forest update-toolbar --filter '*react*'
+
+# Preview changes without applying
+floatctl forest update-toolbar --all --dry-run
+
+# Force re-injection of toolbar
+floatctl forest update-toolbar --all --force
+
+# Standard forest commands
+floatctl forest list            # List all V0 projects
+floatctl forest status          # Check project statuses
+floatctl forest sync            # Sync projects
+```
 
 ### Other Commands
 
@@ -167,6 +320,8 @@ floatctl conversations split conversations.json --dry-run
 # Get help
 floatctl --help
 floatctl conversations --help
+floatctl chroma --help
+floatctl forest --help
 ```
 
 ## Architecture

@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Chroma vector database plugin with comprehensive features
+  - Commands: list, info, peek, query, recent
+  - FloatQL natural language query parser for intuitive searches
+  - Support for FLOAT patterns (::), personas ([sysop::]), bridge IDs
+  - Temporal filters ("yesterday", "last week", date parsing)
+  - Beautiful Rich terminal UI with tables and panels
+  - `--rendered` flag for markdown formatting in outputs
+- Forest plugin toolbar update command
+  - Batch update toolbars across V0 projects
+  - Parallel deployments (configurable, default 3)
+  - Framework detection (Next.js, CRA, Vite, etc.)
+  - Progress tracking with spinner UI
+  - Dry-run mode for preview
+  - Pattern filtering and force update options
+- Enhanced FLOAT-specific markdown rendering
+  - Improved styling for FLOAT syntax elements
+  - Better handling of structured content
+  - Markdown-compatible output formatting
 - Tool call extraction to separate JSONL files
   - Creates `.tool_calls.jsonl` file alongside markdown when tool calls are present
   - Each tool call includes ID, name, input, message/content indices
@@ -27,6 +45,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Start time metadata for each message in markdown
   - Extracted from first content item of each message
   - Added as `start_time::` marker under Human/Assistant headers
+- Interactive REPL mode for note-taking
+  - Fast, low-friction interface with prompt_toolkit
+  - Smart parsing of ::markers and ```code blocks
+  - Python REPL mode with Ctrl+R toggle
+  - Shell command execution with !command
+  - FloatCtl integration - floatctl() available in Python
+  - Hierarchical organization with Tab/Shift+Tab
+  - Alt+↑/↓ navigation through entries
+  - Persistent storage in ~/.floatctl/repl_notes/
+- Textual-based interactive notes interface
+  - Beautiful TUI with Textual framework
+  - Tree-based hierarchical view
+  - Command palette (Ctrl+P) for floatctl commands
+  - Visual styling with syntax highlighting
+  - Mouse support for entry selection
+  - REPL mode with code execution
+  - Note: Still being refined for lower friction
+- Simplified FLOAT Notes (float-simple command)
+  - Same-level insertion by default (not child)
+  - Tab/Shift+Tab for indentation without UI friction
+  - No save notifications for seamless flow
+  - Visual insertion indicator shows where next entry appears
+  - Minimal UI chrome - just entries and input
+  - Based on maw-held-stories prototype insights
 
 ### Changed
 - Improved filename generation
@@ -36,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Proper conflict resolution with numbered suffixes
 
 ### Fixed
+- Markdown rendering compatibility
+  - Replaced Rich markup with markdown-compatible styling
+  - Fixed display issues in terminal output
 - Timezone-aware datetime comparison
   - Fixed "can't compare offset-naive and offset-aware datetimes" error
   - Now properly handles both naive and aware datetimes
