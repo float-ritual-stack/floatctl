@@ -290,6 +290,49 @@ def create_cli_app() -> click.Group:
         else:
             click.echo(f"Error generating {shell} completion: {result.stderr}", err=True)
     
+    @cli.command()
+    @click.pass_context
+    def repl(ctx: click.Context) -> None:
+        """Launch interactive REPL mode for FloatCtl.
+        
+        The REPL provides an interactive shell experience with:
+        - Command completion with Tab
+        - Command history with arrow keys
+        - Plugin-specific contexts
+        - Rich formatted output
+        
+        Example:
+            $ floatctl repl
+            floatctl> help
+            floatctl> plugin use forest
+            floatctl[forest]> list
+        """
+        from floatctl.repl import FloatREPL, REPL_AVAILABLE
+        
+        if not REPL_AVAILABLE:
+            console.print("[red]REPL mode requires prompt-toolkit:[/red]")
+            console.print("  pip install prompt-toolkit")
+            return
+            
+        # Create REPL instance
+        repl = FloatREPL("floatctl")
+        
+        # Register all loaded plugins with REPL
+        pm = ctx.obj.get("plugin_manager")
+        if pm and hasattr(pm, 'plugins'):
+            for name, plugin_info in pm.plugins.items():
+                plugin_instance = plugin_info.get('instance')
+                if plugin_instance:
+                    repl.register_plugin(name, plugin_instance)
+        
+        # Run the REPL
+        try:
+            repl.run()
+        except Exception as e:
+            console.print(f"[red]REPL error: {e}[/red]")
+            if ctx.obj.get("config", {}).get("verbose", False):
+                console.print_exception()
+    
     return cli
 
 

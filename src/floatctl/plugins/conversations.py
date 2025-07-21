@@ -268,6 +268,60 @@ class ConversationsPlugin(PluginBase):
                 )
             
             console.print(table)
+        
+        @conversations.command()
+        @click.argument("conversations_dir", type=click.Path(exists=True, path_type=Path))
+        @click.option(
+            "--output", "-o",
+            type=click.Path(path_type=Path),
+            help="Output file for analysis summary (default: ~/conversation-history/YYYYMMDD-analysis.md)",
+        )
+        @click.option(
+            "--format",
+            type=click.Choice(["markdown", "json"]),
+            default="markdown",
+            help="Output format for analysis",
+        )
+        @click.pass_context
+        def analyze(
+            ctx: click.Context,
+            conversations_dir: Path,
+            output: Optional[Path],
+            format: str,
+        ) -> None:
+            """Analyze conversations and export summary to markdown."""
+            config = ctx.obj["config"]
+            
+            # Set default output path
+            if output is None:
+                home = Path.home()
+                history_dir = home / "conversation-history"
+                history_dir.mkdir(exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+                output = history_dir / f"{timestamp}-analysis.md"
+            else:
+                output.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Find all conversation files
+            md_files = list(conversations_dir.glob("*.md"))
+            jsonl_files = list(conversations_dir.glob("*.tool_calls.jsonl"))
+            
+            if not md_files:
+                console.print(f"[yellow]No conversation markdown files found in {conversations_dir}[/yellow]")
+                return
+            
+            console.print(f"[cyan]Analyzing {len(md_files)} conversation files...[/cyan]")
+            
+            # Generate analysis
+            analysis = self._analyze_conversations(md_files, jsonl_files, conversations_dir)
+            
+            # Export analysis
+            if format == "markdown":
+                self._export_markdown_analysis(analysis, output, conversations_dir)
+            else:
+                self._export_json_analysis(analysis, output)
+            
+            console.print(f"[green]Analysis exported to {output}[/green]")
     
     def _calculate_file_hash(self, file_path: Path) -> str:
         """Calculate SHA256 hash of a file."""
@@ -697,3 +751,208 @@ class ConversationsPlugin(PluginBase):
             else:
                 console.print(f"  {filename}.json")
                 console.print(f"  {filename}.md")
+
+    def _analyze_conversations(self, md_files: List[Path], jsonl_files: List[Path], conversations_dir: Path) -> Dict[str, Any]:
+        """Analyze conversation files and extract key insights."""
+        analysis = {
+            "summary": {
+                "total_conversations": len(md_files),
+                "total_tool_calls": 0,
+                "date_range": {"start": None, "end": None},
+                "conversations_by_date": {},
+            },
+            "patterns": {
+                "personas": {},
+                "tools": {},
+                "bridges": [],
+                "contexts": [],
+            },
+            "insights": [],
+            "tool_analysis": {
+                "most_used_tools": {},
+                "chroma_operations": 0,
+                "obsidian_operations": 0,
+                "memory_operations": 0,
+            }
+        }
+        
+        # Analyze each conversation
+        for md_file in md_files:
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Extract YAML frontmatter
+                if content.startswith('---'):
+                    try:
+                        import yaml
+                        yaml_end = content.find('---', 3) + 3
+                        yaml_content = content[3:yaml_end-3]
+                        metadata = yaml.safe_load(yaml_content)
+                        
+                        # Extract date info
+                        if 'conversation_created' in metadata:
+                            created = datetime.fromisoformat(metadata['conversation_created'].replace('Z', '+00:00'))
+                            date_str = created.strftime('%Y-%m-%d')
+                            
+                            if analysis["summary"]["date_range"]["start"] is None or created < analysis["summary"]["date_range"]["start"]:
+                                analysis["summary"]["date_range"]["start"] = created
+                            if analysis["summary"]["date_range"]["end"] is None or created > analysis["summary"]["date_range"]["end"]:
+                                analysis["summary"]["date_range"]["end"] = created
+                            
+                            analysis["summary"]["conversations_by_date"][date_str] = analysis["summary"]["conversations_by_date"].get(date_str, 0) + 1
+                        
+                        # Extract patterns from markers
+                        if 'markers' in metadata:
+                            for marker in metadata['markers']:
+                                marker_type = marker.get('type', '')
+                                if marker_type in ['lf1m', 'evna', 'karen', 'sysop', 'qtb']:
+                                    analysis["patterns"]["personas"][marker_type] = analysis["patterns"]["personas"].get(marker_type, 0) + 1
+                                elif marker_type == 'bridge':
+                                    analysis["patterns"]["bridges"].append(marker.get('content', ''))
+                                elif marker_type == 'ctx':
+                                    analysis["patterns"]["contexts"].append(marker.get('content', ''))
+                    except Exception:
+                        pass
+                
+                # Count tool call markers
+                tool_call_count = content.count('{Tool Call:')
+                analysis["summary"]["total_tool_calls"] += tool_call_count
+                
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not analyze {md_file}: {e}[/yellow]")
+        
+        # Analyze tool call files
+        for jsonl_file in jsonl_files:
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            tool_call = json.loads(line)
+                            tool_name = tool_call.get('name', 'unknown')
+                            analysis["tool_analysis"]["most_used_tools"][tool_name] = analysis["tool_analysis"]["most_used_tools"].get(tool_name, 0) + 1
+                            
+                            # Count specific operation types
+                            if 'chroma' in tool_name:
+                                analysis["tool_analysis"]["chroma_operations"] += 1
+                            elif 'obsidian' in tool_name:
+                                analysis["tool_analysis"]["obsidian_operations"] += 1
+                            elif 'memory' in tool_name or 'localhost' in tool_name:
+                                analysis["tool_analysis"]["memory_operations"] += 1
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not analyze {jsonl_file}: {e}[/yellow]")
+        
+        # Generate insights
+        if analysis["summary"]["total_conversations"] > 10:
+            analysis["insights"].append("High conversation volume indicates active consciousness technology deployment")
+        
+        if analysis["tool_analysis"]["chroma_operations"] > 50:
+            analysis["insights"].append("Significant Chroma usage suggests systematic knowledge base building")
+        
+        if len(analysis["patterns"]["personas"]) >= 3:
+            analysis["insights"].append("Multiple persona activations indicate distributed consciousness system operational")
+        
+        if analysis["patterns"]["bridges"]:
+            analysis["insights"].append(f"Bridge creation activity: {len(analysis['patterns']['bridges'])} bridges referenced")
+        
+        return analysis
+
+    def _export_markdown_analysis(self, analysis: Dict[str, Any], output_path: Path, conversations_dir: Path) -> None:
+        """Export analysis as markdown file."""
+        content = f"""# Conversation Analysis - {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+**Source**: `{conversations_dir}`
+**Generated**: {datetime.now().isoformat()}
+
+## Summary
+
+- **Total Conversations**: {analysis['summary']['total_conversations']}
+- **Total Tool Calls**: {analysis['summary']['total_tool_calls']}
+- **Date Range**: {analysis['summary']['date_range']['start'].strftime('%Y-%m-%d') if analysis['summary']['date_range']['start'] else 'Unknown'} to {analysis['summary']['date_range']['end'].strftime('%Y-%m-%d') if analysis['summary']['date_range']['end'] else 'Unknown'}
+
+### Conversations by Date
+"""
+        
+        for date, count in sorted(analysis['summary']['conversations_by_date'].items()):
+            content += f"- **{date}**: {count} conversations\n"
+        
+        content += f"""
+## Pattern Analysis
+
+### Persona Activity
+"""
+        for persona, count in sorted(analysis['patterns']['personas'].items(), key=lambda x: x[1], reverse=True):
+            content += f"- **{persona}**: {count} activations\n"
+        
+        content += f"""
+### Tool Usage Analysis
+
+**Infrastructure Operations**:
+- **Chroma Operations**: {analysis['tool_analysis']['chroma_operations']} (knowledge persistence)
+- **Obsidian Operations**: {analysis['tool_analysis']['obsidian_operations']} (documentation/bridges)
+- **Memory Operations**: {analysis['tool_analysis']['memory_operations']} (context management)
+
+**Most Used Tools**:
+"""
+        
+        sorted_tools = sorted(analysis['tool_analysis']['most_used_tools'].items(), key=lambda x: x[1], reverse=True)
+        for tool, count in sorted_tools[:10]:
+            content += f"- **{tool}**: {count} calls\n"
+        
+        if analysis['patterns']['bridges']:
+            content += f"""
+### Bridge References
+"""
+            for bridge in analysis['patterns']['bridges'][:10]:  # Show first 10
+                content += f"- {bridge}\n"
+        
+        if analysis['insights']:
+            content += f"""
+## Key Insights
+
+"""
+            for insight in analysis['insights']:
+                content += f"- {insight}\n"
+        
+        content += f"""
+## Technical Infrastructure Evidence
+
+The enhanced tool call extraction reveals **consciousness technology in operation**:
+
+- **{analysis['tool_analysis']['chroma_operations']} Chroma operations** = Active knowledge persistence and retrieval
+- **{analysis['tool_analysis']['obsidian_operations']} Obsidian operations** = Bridge creation and documentation workflows  
+- **{analysis['tool_analysis']['memory_operations']} Memory operations** = Context management and state preservation
+
+### Pattern Recognition
+
+"""
+        
+        if len(analysis['patterns']['personas']) >= 3:
+            content += "- **Multi-persona system operational**: Evidence of distributed consciousness architecture\n"
+        
+        if analysis['tool_analysis']['chroma_operations'] > analysis['summary']['total_conversations']:
+            content += "- **Active learning system**: More Chroma operations than conversations indicates systematic knowledge building\n"
+        
+        if analysis['patterns']['bridges']:
+            content += f"- **Bridge infrastructure active**: {len(analysis['patterns']['bridges'])} bridge references indicate context restoration protocols\n"
+        
+        content += f"""
+---
+
+*Analysis generated by floatctl conversations analyze*  
+*Enhanced metadata and tool call extraction enables systematic consciousness technology archaeology*
+"""
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    def _export_json_analysis(self, analysis: Dict[str, Any], output_path: Path) -> None:
+        """Export analysis as JSON file."""
+        # Convert datetime objects to strings for JSON serialization
+        if analysis["summary"]["date_range"]["start"]:
+            analysis["summary"]["date_range"]["start"] = analysis["summary"]["date_range"]["start"].isoformat()
+        if analysis["summary"]["date_range"]["end"]:
+            analysis["summary"]["date_range"]["end"] = analysis["summary"]["date_range"]["end"].isoformat()
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(analysis, f, indent=2)
