@@ -174,6 +174,12 @@ class SimpleFloatNotes(App):
     def watch_selected_index(self, old_value: int, new_value: int):
         """React to selection changes."""
         self.refresh_entries()
+        # Update subtitle with position info
+        if self.entries and 0 <= new_value < len(self.entries):
+            repl_status = "REPL ON" if self.repl_mode else "REPL OFF"
+            self.sub_title = f"{repl_status} | Entry {new_value + 1}/{len(self.entries)}"
+        else:
+            self.sub_title = "REPL ON" if self.repl_mode else "REPL OFF"
     
     def get_insertion_indicator(self) -> str:
         """Get text showing where next entry will be inserted."""
@@ -208,9 +214,9 @@ class SimpleFloatNotes(App):
             else:
                 content = entry.content
             
-            # Selection
+            # Selection - use bright white on blue for maximum visibility
             if i == self.selected_index:
-                line = f"[bold]{indent}[green]➤[/green] {time_str} {content}[/bold]"
+                line = f"[bold white on blue]{indent}➤ {time_str} {content}[/bold white on blue]"
             else:
                 line = f"{indent}➤ {time_str} {content}"
             

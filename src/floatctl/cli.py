@@ -41,7 +41,7 @@ from rich.panel import Panel
 
 from floatctl import __version__
 from floatctl.core.config import Config, load_config
-from floatctl.core.logging import setup_logging
+from floatctl.core.logging import setup_logging, setup_quiet_logging
 from floatctl.plugin_manager import PluginManager
 
 # Configure rich-click for beautiful output
@@ -366,6 +366,10 @@ def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
 def main():
     """Main entry point that sets up everything."""
     try:
+        # Set up quiet logging initially to prevent verbose plugin loading output
+        if not os.environ.get('_FLOATCTL_COMPLETE'):
+            setup_quiet_logging()
+        
         # Create CLI app
         cli_app = create_cli_app()
         

@@ -31,10 +31,10 @@ node_modules/
 # OS specific
 .DS_Store
 
-# Task files
-# tasks.json
-# tasks/
-
 # Implementation plans (local only)
 .implementation-plans/
 !.implementation-plans/.gitkeep 
+
+# Task files
+# tasks.json
+# tasks/ 
