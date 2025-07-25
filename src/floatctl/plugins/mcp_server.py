@@ -248,7 +248,7 @@ class MCPServerPlugin(PluginBase):
         @mcp.command()
         @click.option(
             '--transport',
-            type=click.Choice(['stdio', 'http']),
+            type=click.Choice(['stdio', 'sse', 'streamable-http']),
             default='stdio',
             help='Transport mode for MCP server'
         )
@@ -266,7 +266,7 @@ class MCPServerPlugin(PluginBase):
             
             Examples:
                 floatctl mcp serve              # Run with stdio transport
-                floatctl mcp serve --transport http --port 8080
+                floatctl mcp serve --transport sse --port 8080
             """
             logger = get_logger(__name__)
             
@@ -275,11 +275,13 @@ class MCPServerPlugin(PluginBase):
                 logger.info("mcp_server_start", transport="stdio")
                 
                 # Run the MCP server
-                mcp.run()
+                mcp.run(transport='stdio')
                 
-            else:  # http
-                click.echo(f"Starting Evna Context Concierge MCP server (http) on port {port}...")
-                logger.info("mcp_server_start", transport="http", port=port)
+            elif transport in ['sse', 'streamable-http']:
+                click.echo(f"Starting Evna Context Concierge MCP server ({transport}) on port {port}...")
+                logger.info("mcp_server_start", transport=transport, port=port)
                 
-                # Run with HTTP transport
-                mcp.run(transport='http', port=port)
+                # Note: SSE/HTTP transports would require additional setup with uvicorn
+                # For now, we'll just use stdio
+                click.echo(f"[yellow]Note: {transport} transport requires additional setup. Using stdio for now.[/yellow]")
+                mcp.run(transport='stdio')
