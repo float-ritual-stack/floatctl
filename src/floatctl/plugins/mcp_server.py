@@ -268,7 +268,7 @@ class MCPServerPlugin(PluginBase):
                 floatctl mcp serve              # Run with stdio transport
                 floatctl mcp serve --transport http --port 8080
             """
-            logger = get_logger()
+            logger = get_logger(__name__)
             
             if transport == 'stdio':
                 click.echo("Starting Evna Context Concierge MCP server (stdio)...")
