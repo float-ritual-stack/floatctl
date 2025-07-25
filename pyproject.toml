@@ -43,6 +43,12 @@ dev = [
     "ruff>=0.1.0",
     "pre-commit>=3.6.0",
 ]
+repl = [
+    "prompt-toolkit>=3.0.0",
+]
+textual = [
+    "textual>=0.47.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/evanschultz/floatctl"
@@ -58,6 +64,10 @@ conversations = "floatctl.plugins.conversations:ConversationsPlugin"
 artifacts = "floatctl.plugins.artifacts:ArtifactsPlugin"
 export = "floatctl.plugins.export:ExportPlugin"
 chroma = "floatctl.plugins.chroma:ChromaPlugin"
+forest = "floatctl.plugins.forest:ForestPlugin"
+repl = "floatctl.plugins.interactive_repl:InteractiveREPLPlugin"
+textual = "floatctl.plugins.textual_float:TextualFloatPlugin"
+float-simple = "floatctl.plugins.textual_float_simple:SimpleTextualFloatPlugin"
 
 [dependency-groups]
 dev = [
@@ -66,4 +76,43 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.3",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=floatctl",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src/floatctl"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]

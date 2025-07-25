@@ -1,5 +1,6 @@
 """Structured logging configuration using structlog."""
 
+import os
 import sys
 import logging
 from pathlib import Path
@@ -9,6 +10,24 @@ import structlog
 from rich.console import Console
 
 console = Console()
+
+
+def setup_quiet_logging() -> None:
+    """
+    Set up minimal logging for initial plugin loading.
+    This prevents verbose output during CLI initialization.
+    """
+    # Configure minimal structlog for quiet operation
+    structlog.configure(
+        processors=[
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+        context_class=dict,
+        logger_factory=structlog.WriteLoggerFactory(file=open(os.devnull, "w")),
+        cache_logger_on_first_use=True,
+    )
 
 
 def setup_logging(config: Any, log_file: Optional[Path] = None) -> None:

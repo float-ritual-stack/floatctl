@@ -7,6 +7,9 @@ import concurrent.futures
 import re
 import shutil
 import tempfile
+import time
+import urllib.request
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -16,13 +19,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from rich import box
 
 from floatctl.plugin_manager import PluginBase
+from floatctl.repl import REPLPlugin
 
 console = Console()
 
 
-class ForestPlugin(PluginBase):
+class ForestPlugin(PluginBase, REPLPlugin):
     """Plugin for managing FLOAT Forest deployments and artifacts."""
     
     name = "forest"
@@ -34,6 +39,9 @@ class ForestPlugin(PluginBase):
         super().__init__(config)
         self.artifacts_path = Path.home() / "projects" / "float-workspace" / "artifacts"
         self.forest_path = self.artifacts_path / "float-forest-navigator"
+        self.sites = []
+        self.selected_site = None
+        self._load_sites()
         
     def register_commands(self, cli_group: click.Group) -> None:
         """Register forest commands with the CLI."""
@@ -41,6 +49,20 @@ class ForestPlugin(PluginBase):
         @cli_group.group(name="forest", help="Manage FLOAT Forest deployments")
         def forest_group():
             """Forest management commands."""
+            pass
+        
+        # Import and register interactive commands if available
+        try:
+            from .forest_repl import add_repl_command, REPL_AVAILABLE
+            if REPL_AVAILABLE:
+                add_repl_command(forest_group)
+        except ImportError:
+            pass
+        
+        try:
+            from .forest_rich_ui import add_rich_commands
+            add_rich_commands(forest_group)
+        except ImportError:
             pass
         
         @forest_group.command(name="status")
@@ -163,6 +185,55 @@ class ForestPlugin(PluginBase):
             if all:
                 limit = 1000
             self.fast_toolbar_update(limit, filter, parallel, force, dry_run)
+        
+        @forest_group.command(name="check-production")
+        @click.option(
+            "--update",
+            is_flag=True,
+            help="Update artifacts-production.json with working sites"
+        )
+        @click.option(
+            "--parallel",
+            "-p",
+            type=int,
+            default=5,
+            help="Number of parallel checks (default: 5)"
+        )
+        @click.option(
+            "--timeout",
+            type=int,
+            default=5,
+            help="Timeout per site check in seconds (default: 5)"
+        )
+        def check_production_cmd(update: bool, parallel: int, timeout: int):
+            """Check which sites with custom domains are actually working."""
+            self.check_production_sites(update, parallel, timeout)
+        
+        @forest_group.command(name="add-domains")
+        @click.option(
+            "--limit",
+            "-n",
+            type=int,
+            help="Number of domains to add (default: all)"
+        )
+        @click.option(
+            "--filter",
+            type=str,
+            help="Only add domains matching pattern"
+        )
+        @click.option(
+            "--dry-run",
+            is_flag=True,
+            help="Show what would be done without doing it"
+        )
+        @click.option(
+            "--force",
+            is_flag=True,
+            help="Add domain even if site is not working"
+        )
+        def add_domains_cmd(limit: Optional[int], filter: Optional[str], dry_run: bool, force: bool):
+            """Add custom domains to deployed projects."""
+            self.add_custom_domains(limit, filter, dry_run, force)
     
     def check_deployment_status(self) -> Dict[str, List[Dict]]:
         """Check deployment status of all artifacts."""
@@ -1131,3 +1202,541 @@ class ForestPlugin(PluginBase):
             return False, "Operation timed out"
         except Exception as e:
             return False, str(e)
+    
+    def check_production_sites(self, update: bool, parallel: int, timeout: int):
+        """Check which sites with custom domains are actually working."""
+        console.print(Panel.fit(
+            "[bold blue]🔍 Checking Production Sites[/bold blue]",
+            border_style="blue"
+        ))
+        
+        # Load artifacts catalog
+        artifacts_file = self.forest_path / "public" / "artifacts.json"
+        if not artifacts_file.exists():
+            console.print("[red]❌ No artifacts catalog found![/red]")
+            return
+        
+        with open(artifacts_file) as f:
+            data = json.load(f)
+        
+        all_artifacts = data.get("artifacts", [])
+        
+        # Filter to only deployed sites
+        deployed_sites = [a for a in all_artifacts if a.get("isDeployed", False)]
+        console.print(f"📊 Total deployed sites: {len(deployed_sites)}")
+        
+        # Filter to sites with custom domains
+        sites_with_domains = [a for a in deployed_sites if a.get("customDomain")]
+        console.print(f"🌐 Sites with custom domains: {len(sites_with_domains)}")
+        
+        if not sites_with_domains:
+            console.print("[yellow]No sites with custom domains found[/yellow]")
+            return
+        
+        console.print(f"\n[bold]Checking {len(sites_with_domains)} sites...[/bold]")
+        
+        # Check sites in parallel
+        working_sites = []
+        failed_sites = []
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            
+            task = progress.add_task("Checking sites...", total=len(sites_with_domains))
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
+                # Submit all checks
+                future_to_site = {}
+                for site in sites_with_domains:
+                    future = executor.submit(
+                        self._check_site_status,
+                        site.get("customDomain"),
+                        timeout
+                    )
+                    future_to_site[future] = site
+                
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_site):
+                    site = future_to_site[future]
+                    try:
+                        is_working = future.result()
+                        if is_working:
+                            working_sites.append(site)
+                        else:
+                            failed_sites.append(site)
+                    except Exception as e:
+                        console.print(f"[red]Error checking {site.get('name')}: {e}[/red]")
+                        failed_sites.append(site)
+                    
+                    progress.advance(task)
+        
+        # Show results
+        console.print(f"\n[bold]Results:[/bold]")
+        console.print(f"  [green]✅ Working sites: {len(working_sites)}[/green]")
+        console.print(f"  [red]❌ Failed sites: {len(failed_sites)}[/red]")
+        
+        # Show some examples
+        if working_sites:
+            console.print("\n[bold green]Working Sites:[/bold green]")
+            for site in working_sites[:5]:
+                console.print(f"  • {site.get('name')}: {site.get('customDomain')}")
+            if len(working_sites) > 5:
+                console.print(f"  ... and {len(working_sites) - 5} more")
+        
+        if failed_sites:
+            console.print("\n[bold red]Failed Sites:[/bold red]")
+            for site in failed_sites[:5]:
+                console.print(f"  • {site.get('name')}: {site.get('customDomain')}")
+            if len(failed_sites) > 5:
+                console.print(f"  ... and {len(failed_sites) - 5} more")
+        
+        if update:
+            # Update artifacts-production.json with only working sites
+            console.print("\n[bold]Updating artifacts-production.json...[/bold]")
+            
+            production_data = {
+                "generated": datetime.now().isoformat(),
+                "totalArtifacts": len(deployed_sites),
+                "sitesWithCustomDomains": len(sites_with_domains),
+                "workingArtifacts": len(working_sites),
+                "artifacts": working_sites
+            }
+            
+            production_file = self.forest_path / "public" / "artifacts-production.json"
+            with open(production_file, 'w') as f:
+                json.dump(production_data, f, indent=2)
+            
+            console.print(f"[green]✅ Updated artifacts-production.json with {len(working_sites)} working sites[/green]")
+            
+            # Also update deployment-status.csv
+            console.print("\n[bold]Updating deployment-status.csv...[/bold]")
+            self._update_deployment_csv(deployed_sites, working_sites, failed_sites)
+    
+    def _check_site_status(self, url: str, timeout: int) -> bool:
+        """Check if a site URL is working."""
+        if not url:
+            return False
+        
+        try:
+            # Create request with timeout and headers
+            req = urllib.request.Request(
+                url,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (compatible; FLOAT-Forest/1.0)'
+                }
+            )
+            
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                # Check if status is 2xx or 3xx (success or redirect)
+                return response.status < 400
+                
+        except urllib.error.HTTPError as e:
+            # 404, 500, etc
+            return False
+        except urllib.error.URLError as e:
+            # Connection error, timeout, etc
+            return False
+        except Exception as e:
+            # Any other error
+            return False
+    
+    def _update_deployment_csv(self, all_sites: List[Dict], working: List[Dict], failed: List[Dict]):
+        """Update the deployment-status.csv file."""
+        csv_path = self.forest_path / "deployment-status.csv"
+        
+        # Create a map for quick lookup
+        working_names = {s.get("name") for s in working}
+        failed_names = {s.get("name") for s in failed}
+        
+        # Write CSV
+        lines = ["Project,CustomDomain,Status,LastChecked,Issues"]
+        
+        for site in all_sites:
+            name = site.get("name", "")
+            domain = site.get("customDomain", "")
+            
+            if not domain:
+                status = "NO_DOMAIN"
+            elif name in working_names:
+                status = "OK"
+            elif name in failed_names:
+                status = "404"
+            else:
+                status = "UNKNOWN"
+            
+            lines.append(f"{name},{domain},{status},{datetime.now().isoformat()},")
+        
+        with open(csv_path, 'w') as f:
+            f.write('\n'.join(lines))
+        
+        console.print(f"[green]✅ Updated deployment-status.csv[/green]")
+    
+    def add_custom_domains(self, limit: Optional[int], filter_pattern: Optional[str], dry_run: bool, force: bool):
+        """Add custom domains to deployed projects."""
+        console.print(Panel.fit(
+            "[bold blue]🌐 Adding Custom Domains[/bold blue]",
+            border_style="blue"
+        ))
+        
+        # Load subdomain mapping
+        subdomain_file = self.forest_path / "subdomain-mapping.json"
+        if not subdomain_file.exists():
+            console.print("[red]❌ subdomain-mapping.json not found![/red]")
+            return
+        
+        # Load deployed URLs
+        deployed_urls_file = self.forest_path / "deployed-urls.json"
+        if not deployed_urls_file.exists():
+            console.print("[red]❌ deployed-urls.json not found![/red]")
+            return
+        
+        with open(subdomain_file) as f:
+            subdomain_mapping = json.load(f)
+        
+        with open(deployed_urls_file) as f:
+            deployed_urls = json.load(f)
+        
+        # Filter mappings
+        if filter_pattern:
+            import fnmatch
+            subdomain_mapping = {
+                k: v for k, v in subdomain_mapping.items()
+                if fnmatch.fnmatch(k, filter_pattern) or fnmatch.fnmatch(v, filter_pattern)
+            }
+        
+        # Get sites that need domains
+        sites_to_process = []
+        for artifact_name, subdomain in subdomain_mapping.items():
+            if artifact_name not in deployed_urls:
+                continue
+            
+            deployed_url = deployed_urls[artifact_name]
+            if not deployed_url or not isinstance(deployed_url, str):
+                continue
+            
+            sites_to_process.append({
+                "name": artifact_name,
+                "subdomain": subdomain,
+                "deployed_url": deployed_url
+            })
+        
+        # Limit if requested
+        if limit:
+            sites_to_process = sites_to_process[:limit]
+        
+        if not sites_to_process:
+            console.print("[yellow]No sites to process[/yellow]")
+            return
+        
+        console.print(f"📊 Found {len(sites_to_process)} sites to add domains to")
+        
+        if dry_run:
+            table = Table(show_header=True)
+            table.add_column("Project", style="cyan")
+            table.add_column("Domain", style="green")
+            table.add_column("Deployed URL", style="blue")
+            
+            for site in sites_to_process[:20]:
+                table.add_row(
+                    site["name"],
+                    site["subdomain"],
+                    site["deployed_url"]
+                )
+            
+            console.print(table)
+            
+            if len(sites_to_process) > 20:
+                console.print(f"\n... and {len(sites_to_process) - 20} more")
+            
+            console.print("\n[yellow]DRY RUN - No changes will be made[/yellow]")
+            return
+        
+        # Check if sites are working (unless force)
+        if not force:
+            console.print("\n[bold]Checking site status...[/bold]")
+            working_sites = []
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Checking sites...", total=len(sites_to_process))
+                
+                for site in sites_to_process:
+                    # Check if deployed URL is accessible
+                    if self._check_site_status(site["deployed_url"], 5):
+                        working_sites.append(site)
+                    progress.advance(task)
+            
+            console.print(f"\n✅ {len(working_sites)} sites are working")
+            if len(working_sites) < len(sites_to_process):
+                console.print(f"⚠️  Skipping {len(sites_to_process) - len(working_sites)} non-working sites")
+            
+            sites_to_process = working_sites
+        
+        if not sites_to_process:
+            console.print("[yellow]No working sites to add domains to[/yellow]")
+            return
+        
+        # Add domains
+        console.print(f"\n[bold]Adding {len(sites_to_process)} domains...[/bold]")
+        
+        succeeded = []
+        failed = []
+        
+        for site in sites_to_process:
+            console.print(f"\nAdding {site['subdomain']} → {site['name']}...")
+            
+            try:
+                # Use vercel alias command
+                result = subprocess.run(
+                    ["vercel", "alias", site["deployed_url"], site["subdomain"]],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if result.returncode == 0:
+                    console.print(f"[green]✅ Added {site['subdomain']}[/green]")
+                    succeeded.append(site)
+                elif "already exists" in result.stdout or "already exists" in result.stderr:
+                    console.print(f"[yellow]⚠️  {site['subdomain']} already exists[/yellow]")
+                    succeeded.append(site)
+                else:
+                    console.print(f"[red]❌ Failed: {result.stderr or result.stdout}[/red]")
+                    failed.append((site, result.stderr or result.stdout))
+                
+            except subprocess.TimeoutExpired:
+                console.print(f"[red]❌ Timeout adding domain[/red]")
+                failed.append((site, "Timeout"))
+            except Exception as e:
+                console.print(f"[red]❌ Error: {e}[/red]")
+                failed.append((site, str(e)))
+            
+            # Small delay to avoid rate limiting
+            time.sleep(0.5)
+        
+        # Summary
+        console.print(f"\n[bold]Summary:[/bold]")
+        console.print(f"  [green]✅ Added: {len(succeeded)} domains[/green]")
+        if failed:
+            console.print(f"  [red]❌ Failed: {len(failed)} domains[/red]")
+        
+        if succeeded:
+            console.print("\n[bold green]Successfully added domains:[/bold green]")
+            for site in succeeded[:10]:
+                console.print(f"  • https://{site['subdomain']}")
+            if len(succeeded) > 10:
+                console.print(f"  ... and {len(succeeded) - 10} more")
+        
+        if failed:
+            console.print("\n[bold red]Failed domains:[/bold red]")
+            for site, error in failed[:5]:
+                console.print(f"  • {site['subdomain']}: {error}")
+            if len(failed) > 5:
+                console.print(f"  ... and {len(failed) - 5} more")
+        
+        console.print("\n[yellow]Note: DNS propagation may take a few minutes[/yellow]")
+    
+    def _load_sites(self):
+        """Load site data from deployment status."""
+        try:
+            status_file = self.forest_path / "deployment-status.csv"
+            if status_file.exists():
+                import csv
+                with open(status_file, 'r') as f:
+                    reader = csv.DictReader(f)
+                    self.sites = list(reader)
+        except Exception as e:
+            console.print(f"[red]Error loading sites: {e}[/red]")
+            self.sites = []
+    
+    # REPL Plugin Methods
+    def register_repl_commands(self, repl):
+        """Register forest-specific REPL commands."""
+        repl.register_command('list', 'List forest sites', self._repl_list)
+        repl.register_command('select', 'Select a site', self._repl_select)
+        repl.register_command('status', 'Show site status', self._repl_status)
+        repl.register_command('deploy', 'Deploy selected site', self._repl_deploy)
+        repl.register_command('check', 'Check site health', self._repl_check)
+        repl.register_command('open', 'Open site in browser', self._repl_open)
+        repl.register_command('refresh', 'Refresh site data', self._repl_refresh)
+    
+    def handle_repl_command(self, ctx, cmd: str, args: List[str]) -> bool:
+        """Handle forest-specific commands."""
+        # This is called for unknown commands when forest plugin is active
+        # Could add shortcuts or aliases here
+        return False
+    
+    def get_repl_help(self) -> str:
+        """Return help text for forest REPL commands."""
+        return """  list [filter]    List sites (optionally filtered)
+  select <n|name>  Select site by number or name  
+  status           Show selected site details
+  deploy [site]    Deploy site
+  check [site]     Check if site is working
+  open             Open selected site in browser
+  refresh          Reload site data"""
+    
+    def _repl_list(self, ctx, args: List[str]):
+        """List sites in REPL."""
+        filter_text = ' '.join(args) if args else None
+        
+        sites_to_show = self.sites
+        if filter_text:
+            sites_to_show = [
+                s for s in sites_to_show
+                if filter_text.lower() in s['Project'].lower() or
+                   filter_text.lower() in s.get('CustomDomain', '').lower()
+            ]
+        
+        if not sites_to_show:
+            console.print("[yellow]No sites match the criteria[/yellow]")
+            return
+        
+        table = Table(
+            title=f"Forest Sites ({len(sites_to_show)} of {len(self.sites)})",
+            box=box.ROUNDED
+        )
+        
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Status", width=6)
+        table.add_column("Project", style="cyan")
+        table.add_column("Domain", style="blue")
+        
+        for i, site in enumerate(sites_to_show[:30]):
+            status = site.get('Status', 'UNKNOWN')
+            if status == 'OK':
+                status_icon = "[green]✓[/green]"
+            elif status == 'NO_DOMAIN':
+                status_icon = "[yellow]-[/yellow]"
+            else:
+                status_icon = "[red]✗[/red]"
+            
+            selected = "→" if site == self.selected_site else str(i + 1)
+            
+            table.add_row(
+                selected,
+                status_icon,
+                site['Project'],
+                site.get('CustomDomain', '-')
+            )
+        
+        console.print(table)
+        
+        if len(sites_to_show) > 30:
+            console.print(f"[dim]... and {len(sites_to_show) - 30} more sites[/dim]")
+    
+    def _repl_select(self, ctx, args: List[str]):
+        """Select a site in REPL."""
+        if not args:
+            console.print("[red]Please specify a site number or name[/red]")
+            return
+        
+        identifier = ' '.join(args)
+        
+        # Try by number
+        try:
+            index = int(identifier) - 1
+            if 0 <= index < len(self.sites):
+                self.selected_site = self.sites[index]
+                console.print(f"[green]Selected: {self.selected_site['Project']}[/green]")
+                ctx.set_state('prompt_suffix', f"[{self.selected_site['Project']}]")
+                return
+        except ValueError:
+            pass
+        
+        # Try by name
+        matches = [
+            s for s in self.sites
+            if identifier.lower() in s['Project'].lower()
+        ]
+        
+        if len(matches) == 1:
+            self.selected_site = matches[0]
+            console.print(f"[green]Selected: {self.selected_site['Project']}[/green]")
+            ctx.set_state('prompt_suffix', f"[{self.selected_site['Project']}]")
+        elif len(matches) > 1:
+            console.print(f"[yellow]Multiple matches for '{identifier}':[/yellow]")
+            for i, match in enumerate(matches[:5]):
+                console.print(f"  {i+1}. {match['Project']}")
+        else:
+            console.print(f"[red]No site found matching '{identifier}'[/red]")
+    
+    def _repl_status(self, ctx, args: List[str]):
+        """Show site status in REPL."""
+        site = self.selected_site
+        if not site:
+            console.print("[red]No site selected[/red]")
+            return
+        
+        panel = Panel(
+            f"""[bold]{site['Project']}[/bold]
+
+[cyan]Domain:[/cyan] {site.get('CustomDomain', 'None')}
+[cyan]Status:[/cyan] {site.get('Status', 'Unknown')}
+[cyan]Last Check:[/cyan] {site.get('LastChecked', 'Never')}
+[cyan]Issues:[/cyan] {site.get('Issues', 'None')}""",
+            title="Site Status",
+            box=box.ROUNDED
+        )
+        console.print(panel)
+    
+    def _repl_deploy(self, ctx, args: List[str]):
+        """Deploy site from REPL."""
+        site_name = args[0] if args else (self.selected_site['Project'] if self.selected_site else None)
+        
+        if not site_name:
+            console.print("[red]No site specified or selected[/red]")
+            return
+        
+        console.print(f"[yellow]Deploying {site_name}...[/yellow]")
+        # Would call actual deployment logic here
+    
+    def _repl_check(self, ctx, args: List[str]):
+        """Check site health from REPL."""
+        site = self.selected_site
+        if not site:
+            console.print("[red]No site selected[/red]")
+            return
+        
+        domain = site.get('CustomDomain')
+        if not domain:
+            console.print("[red]Site has no custom domain[/red]")
+            return
+        
+        url = f"https://{domain}"
+        console.print(f"[yellow]Checking {url}...[/yellow]")
+        
+        if self._check_site_status(url, 5):
+            console.print("[green]✓ Site is responding[/green]")
+        else:
+            console.print("[red]✗ Site is not responding[/red]")
+    
+    def _repl_open(self, ctx, args: List[str]):
+        """Open site in browser from REPL."""
+        site = self.selected_site
+        if not site:
+            console.print("[red]No site selected[/red]")
+            return
+        
+        domain = site.get('CustomDomain')
+        if not domain:
+            console.print("[red]Site has no custom domain[/red]")
+            return
+        
+        url = f"https://{domain}"
+        console.print(f"[green]Opening {url}...[/green]")
+        
+        import webbrowser
+        webbrowser.open(url)
+    
+    def _repl_refresh(self, ctx, args: List[str]):
+        """Refresh site data in REPL."""
+        console.print("[yellow]Refreshing site data...[/yellow]")
+        self._load_sites()
+        console.print(f"[green]Loaded {len(self.sites)} sites[/green]")
