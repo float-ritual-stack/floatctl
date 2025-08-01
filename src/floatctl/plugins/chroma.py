@@ -199,7 +199,9 @@ def info(collection_name: str):
     try:
         import chromadb
         
-        chroma_path = "/Users/evan/github/chroma-data"
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         client = chromadb.PersistentClient(path=chroma_path)
         
         try:
@@ -293,7 +295,9 @@ def peek(collection_name: str, limit: int, show_metadata: bool, full: bool, rend
     try:
         import chromadb
         
-        chroma_path = "/Users/evan/github/chroma-data"
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         client = chromadb.PersistentClient(path=chroma_path)
         
         try:
@@ -368,7 +372,9 @@ def query(collection_name: str, query_text: str, limit: int, show_distance: bool
         import chromadb
         import json
         
-        chroma_path = "/Users/evan/github/chroma-data"
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         client = chromadb.PersistentClient(path=chroma_path)
         
         try:
@@ -469,7 +475,9 @@ def recent(collection_name: str, hours: Optional[int], days: Optional[int], limi
         import chromadb
         from datetime import datetime, timedelta, timezone
         
-        chroma_path = "/Users/evan/github/chroma-data"
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         client = chromadb.PersistentClient(path=chroma_path)
         
         try:
@@ -630,7 +638,9 @@ def floatql(query: str, collections: Optional[str], limit: int, explain: bool, f
         
         # Execute queries
         import chromadb
-        chroma_path = "/Users/evan/github/chroma-data"
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         client = chromadb.PersistentClient(path=chroma_path)
         
         all_results = []
@@ -757,8 +767,10 @@ def _get_collections_info() -> List[Dict[str, Any]]:
         # Try direct ChromaDB access
         import chromadb
         
-        # Use the user's configured chroma data path
-        chroma_path = "/Users/evan/github/chroma-data"
+        # Use the configured chroma data path
+        from floatctl.core.config import load_config
+        config = load_config()
+        chroma_path = str(config.chroma_path)
         
         # Initialize Chroma client
         client = chromadb.PersistentClient(path=chroma_path)

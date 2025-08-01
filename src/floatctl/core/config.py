@@ -50,6 +50,12 @@ class Config(BaseModel):
         description="File patterns to ignore"
     )
     
+    # Chroma settings
+    chroma_path: Path = Field(
+        default=Path("/Users/evan/github/chroma-data"),
+        description="Path to Chroma database"
+    )
+    
     # Plugin-specific settings
     plugin_config: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
