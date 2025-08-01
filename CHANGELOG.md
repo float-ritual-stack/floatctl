@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MCP (Model Context Protocol) server plugin - "Evna Context Concierge"
+  - Natural context capture with `ctx::` markers
+  - Flexible timestamp parsing (supports `@`, `-`, various formats with seconds)
+  - Automatic boundary detection using local Ollama
+  - Morning context retrieval for "brain boot"
+  - Semantic search in active_context_stream
+  - Boundary violation monitoring
+  - Claude Desktop integration with `floatctl mcp install`
+  - Shared Chroma utilities for consistent database access
 - Chroma vector database plugin with comprehensive features
   - Commands: list, info, peek, query, recent
   - FloatQL natural language query parser for intuitive searches
