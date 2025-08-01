@@ -308,6 +308,57 @@ floatctl forest status          # Check project statuses
 floatctl forest sync            # Sync projects
 ```
 
+### MCP Server - Evna Context Concierge
+
+FloatCtl includes an MCP (Model Context Protocol) server that provides natural context management tools for Claude Desktop.
+
+#### Features
+
+- **Natural Context Capture**: Automatically captures `ctx::` markers with flexible timestamp formats
+- **Boundary Detection**: Uses local Ollama to detect when you need a break
+- **Morning Context**: Retrieve recent context for "brain boot" sessions
+- **Semantic Search**: Query your active_context_stream with natural language
+- **Boundary Monitoring**: Checks if you're respecting your declared boundaries
+
+#### Installation
+
+```bash
+# Install the MCP server in Claude Desktop
+floatctl mcp install --claude-desktop
+
+# Restart Claude Desktop to activate
+```
+
+#### Usage in Claude Desktop
+
+Once installed, Claude can naturally process your context markers:
+
+```
+ctx::2025-07-28 @ 08:05:00 PM - Working on MCP improvements
+ctx::2025-07-28 - 9:30 PM - [mode:: debugging] - [project:: floatctl]
+ctx:: taking a break for an hour [boundary-set:: 1 hour break]
+```
+
+The MCP server automatically:
+- Parses timestamps (supports `@`, `-`, various formats)
+- Extracts metadata from `[key:: value]` patterns
+- Adds to active_context_stream with 36-hour TTL
+- Detects implicit break needs using Ollama
+- Monitors boundary violations
+
+#### MCP Commands
+
+```bash
+# Run the server standalone (for testing)
+floatctl mcp serve
+
+# Install to Claude Desktop
+floatctl mcp install --claude-desktop
+
+# Uninstall from Claude Desktop
+floatctl mcp uninstall --claude-desktop
+```
+
 ### Other Commands
 
 ```bash

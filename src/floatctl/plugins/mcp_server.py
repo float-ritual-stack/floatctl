@@ -1,239 +1,21 @@
-"""MCP Server plugin - Evna Context Concierge for active_context_stream management."""
+"""MCP Server plugin - CLI commands for managing the Evna Context Concierge installation."""
 
-import re
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
 import json
+import sys
+from pathlib import Path
+import shutil
 
 import click
-from mcp.server.fastmcp import FastMCP
-import chromadb
-from chromadb.config import Settings
 
 from floatctl.plugin_manager import PluginBase
 from floatctl.core.logging import get_logger
-
-# Create the MCP server instance
-mcp = FastMCP("evna-context-concierge")
-
-
-def parse_ctx_marker(text: str) -> Dict[str, Any]:
-    """Extract ctx:: marker and metadata from text.
-    
-    Handles various formats:
-    - ctx::2025-07-21 - 2:15 PM [mode:: pre-work ritual] - [project:: rangle/airbender]
-    - ctx:: 2025-07-21 -9:49 PM - [project:: rangle/airbender] - [task: 477]
-    """
-    metadata = {}
-    
-    # Find ctx:: line
-    ctx_match = re.search(r'ctx::\s*([^\n]+)', text, re.IGNORECASE)
-    if not ctx_match:
-        return metadata
-    
-    ctx_line = ctx_match.group(1)
-    
-    # Extract timestamp (flexible format)
-    timestamp_patterns = [
-        r'(\d{4}-\d{2}-\d{2})\s*-?\s*(\d{1,2}:\d{2})\s*(AM|PM)?',
-        r'(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2}:\d{2})',
-    ]
-    
-    for pattern in timestamp_patterns:
-        time_match = re.search(pattern, ctx_line, re.IGNORECASE)
-        if time_match:
-            date_str = time_match.group(1)
-            time_str = time_match.group(2)
-            am_pm = time_match.group(3) if len(time_match.groups()) >= 3 else None
-            
-            # Parse timestamp
-            if am_pm:
-                dt_str = f"{date_str} {time_str} {am_pm}"
-                dt = datetime.strptime(dt_str, "%Y-%m-%d %I:%M %p")
-            else:
-                dt_str = f"{date_str} {time_str}"
-                dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-            
-            # Assume UTC if no timezone specified
-            dt = dt.replace(tzinfo=timezone.utc)
-            metadata['timestamp'] = dt.isoformat()
-            metadata['timestamp_unix'] = int(dt.timestamp())
-            break
-    
-    # Extract [key:: value] patterns
-    pattern_matches = re.findall(r'\[([^:]+)::\s*([^\]]+)\]', ctx_line)
-    for key, value in pattern_matches:
-        metadata[key.strip()] = value.strip()
-    
-    # Also check the full message for additional patterns
-    full_patterns = re.findall(r'\[([^:]+)::\s*([^\]]+)\]', text)
-    for key, value in full_patterns:
-        if key.strip() not in metadata:
-            metadata[key.strip()] = value.strip()
-    
-    return metadata
-
-
-def generate_context_id(metadata: Dict[str, Any]) -> str:
-    """Generate a document ID for the context entry."""
-    if 'timestamp' in metadata:
-        dt = datetime.fromisoformat(metadata['timestamp'])
-        base = f"ctx_{dt.strftime('%Y%m%d_%H%M')}"
-    else:
-        base = f"ctx_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}"
-    
-    # Add descriptive suffix if available
-    if 'mode' in metadata:
-        suffix = metadata['mode'].replace(' ', '_')[:20]
-    elif 'project' in metadata:
-        suffix = metadata['project'].split('/')[-1][:20]
-    else:
-        suffix = "context"
-    
-    return f"{base}_{suffix}"
-
-
-@mcp.tool()
-async def process_context_marker(
-    message: str,
-    auto_capture: bool = True
-) -> Dict[str, Any]:
-    """Process a message containing ctx:: marker.
-    
-    Extracts metadata, captures to active_context_stream,
-    and returns related recent context for continuity.
-    """
-    # Parse the ctx:: marker and metadata
-    metadata = parse_ctx_marker(message)
-    
-    if not metadata:
-        return {
-            "error": "No ctx:: marker found in message",
-            "captured": False
-        }
-    
-    # Add TTL if not present (36-hour default)
-    if 'timestamp' in metadata and 'ttl_expires' not in metadata:
-        dt = datetime.fromisoformat(metadata['timestamp'])
-        ttl = dt + timedelta(hours=36)
-        metadata['ttl_expires'] = ttl.isoformat()
-        metadata['ttl_expires_unix'] = int(ttl.timestamp())
-    
-    # Set default type if not specified
-    if 'type' not in metadata:
-        metadata['type'] = 'context_marker'
-    
-    # Generate document ID
-    doc_id = generate_context_id(metadata)
-    
-    captured = None
-    if auto_capture:
-        # Note: In actual implementation, this would use the Chroma MCP tools
-        # For now, we'll return a mock response
-        captured = {
-            "id": doc_id,
-            "document": message,
-            "metadata": metadata
-        }
-    
-    # Find related recent context
-    related = []
-    
-    # Query for related entries based on metadata
-    # Priority: same project > same mode > recent temporal
-    query_terms = []
-    if 'project' in metadata:
-        query_terms.append(metadata['project'])
-    if 'mode' in metadata:
-        query_terms.append(metadata['mode'])
-    if 'task' in metadata:
-        query_terms.append(f"task {metadata['task']}")
-    
-    # Note: In actual implementation, would query Chroma
-    # For now, return empty related context
-    
-    return {
-        "captured": captured,
-        "related_context": related,
-        "extracted_metadata": metadata
-    }
-
-
-@mcp.tool()
-async def get_morning_context(
-    lookback_hours: int = 4
-) -> List[Dict[str, Any]]:
-    """Get recent context for morning brain boot.
-    
-    Retrieves recent context entries, prioritizing:
-    - Unfinished work from yesterday
-    - Recent project activity
-    - Mode transitions
-    """
-    # Calculate timestamp for lookback
-    since = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
-    since_unix = int(since.timestamp())
-    
-    # Note: Would use Chroma query with timestamp filtering
-    # For now, return structured example
-    return [
-        {
-            "id": "ctx_20250725_0800_morning",
-            "summary": "Morning context loaded",
-            "recent_projects": [],
-            "open_tasks": [],
-            "last_mode": None
-        }
-    ]
-
-
-@mcp.tool()
-async def query_recent_context(
-    project: Optional[str] = None,
-    mode: Optional[str] = None,
-    hours: int = 24
-) -> List[Dict[str, Any]]:
-    """Query recent context with filters.
-    
-    Returns context entries matching the specified criteria.
-    """
-    # Calculate timestamp for filtering
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    since_unix = int(since.timestamp())
-    
-    # Build query
-    query_parts = []
-    if project:
-        query_parts.append(f"project {project}")
-    if mode:
-        query_parts.append(f"mode {mode}")
-    
-    query_text = " ".join(query_parts) if query_parts else "context"
-    
-    # Note: Would use Chroma query
-    # For now, return empty results
-    return []
-
-
-@mcp.tool()
-async def search_context(
-    query: str,
-    limit: int = 10
-) -> List[Dict[str, Any]]:
-    """Semantic search in active_context_stream.
-    
-    Uses Chroma's semantic search to find relevant context.
-    """
-    # Note: Would use Chroma semantic search
-    # For now, return empty results
-    return []
 
 
 class MCPServerPlugin(PluginBase):
     """MCP Server plugin for FloatCtl."""
     
     name = "mcp"
-    description = "MCP server for context concierge functionality"
+    description = "MCP server installation and management commands"
     version = "0.1.0"
     
     def register_commands(self, cli_group: click.Group) -> None:
@@ -270,6 +52,9 @@ class MCPServerPlugin(PluginBase):
             """
             logger = get_logger(__name__)
             
+            # Import and run the actual MCP server
+            from floatctl.mcp_server import mcp
+            
             if transport == 'stdio':
                 click.echo("Starting Evna Context Concierge MCP server (stdio)...")
                 logger.info("mcp_server_start", transport="stdio")
@@ -285,3 +70,154 @@ class MCPServerPlugin(PluginBase):
                 # For now, we'll just use stdio
                 click.echo(f"[yellow]Note: {transport} transport requires additional setup. Using stdio for now.[/yellow]")
                 mcp.run(transport='stdio')
+        
+        @mcp.command()
+        @click.option(
+            '--claude-desktop',
+            is_flag=True,
+            help='Install for Claude Desktop'
+        )
+        @click.option(
+            '--name',
+            default='evna-context-concierge',
+            help='Server name in configuration'
+        )
+        def install(claude_desktop: bool, name: str) -> None:
+            """Install the MCP server configuration.
+            
+            Adds the floatctl MCP server to Claude Desktop configuration.
+            
+            Example:
+                floatctl mcp install --claude-desktop
+            """
+            if not claude_desktop:
+                click.echo("[red]Please specify --claude-desktop[/red]")
+                return
+            
+            logger = get_logger(__name__)
+            config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+            
+            if not config_path.exists():
+                click.echo(f"[red]Claude Desktop config not found at {config_path}[/red]")
+                return
+            
+            try:
+                # Read existing config
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Check if already installed
+                if 'mcpServers' not in config:
+                    config['mcpServers'] = {}
+                
+                if name in config['mcpServers']:
+                    click.echo(f"[yellow]Server '{name}' already installed in Claude Desktop[/yellow]")
+                    return
+                
+                # Get the project root directory
+                import floatctl
+                floatctl_module_dir = Path(floatctl.__file__).parent
+                project_root = floatctl_module_dir.parent.parent  # Go up from src/floatctl to project root
+                
+                # Find uv executable
+                uv_path = shutil.which("uv")
+                if not uv_path:
+                    # Try common locations
+                    for path in ["/Users/evan/.local/bin/uv", "/usr/local/bin/uv", "/opt/homebrew/bin/uv"]:
+                        if Path(path).exists():
+                            uv_path = path
+                            break
+                
+                if uv_path:
+                    # Use uv run to execute in the project environment
+                    config['mcpServers'][name] = {
+                        "command": uv_path,
+                        "args": [
+                            "run",
+                            "--project", str(project_root),
+                            "python", "-m", "floatctl.mcp_server"
+                        ]
+                    }
+                else:
+                    # Fallback to direct Python execution
+                    config['mcpServers'][name] = {
+                        "command": sys.executable,
+                        "args": ["-m", "floatctl.mcp_server"],
+                        "env": {
+                            "PYTHONPATH": str(project_root / "src")
+                        }
+                    }
+                
+                # Write updated config
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+                
+                click.echo(f"[green]✓ Installed '{name}' MCP server to Claude Desktop[/green]")
+                if uv_path:
+                    click.echo(f"[blue]Command: {uv_path} run --project {project_root} python -m floatctl.mcp_server[/blue]")
+                else:
+                    click.echo(f"[blue]Command: {sys.executable} -m floatctl.mcp_server[/blue]")
+                    click.echo(f"[blue]PYTHONPATH: {project_root / 'src'}[/blue]")
+                click.echo("[yellow]Restart Claude Desktop to activate the server[/yellow]")
+                
+                logger.info("mcp_server_installed", name=name, config_path=str(config_path))
+                
+            except Exception as e:
+                click.echo(f"[red]Failed to install: {e}[/red]")
+                logger.error("mcp_install_failed", error=str(e))
+        
+        @mcp.command()
+        @click.option(
+            '--claude-desktop',
+            is_flag=True,
+            help='Uninstall from Claude Desktop'
+        )
+        @click.option(
+            '--name',
+            default='evna-context-concierge',
+            help='Server name in configuration'
+        )
+        def uninstall(claude_desktop: bool, name: str) -> None:
+            """Uninstall the MCP server configuration.
+            
+            Removes the floatctl MCP server from Claude Desktop configuration.
+            
+            Example:
+                floatctl mcp uninstall --claude-desktop
+            """
+            if not claude_desktop:
+                click.echo("[red]Please specify --claude-desktop[/red]")
+                return
+            
+            logger = get_logger(__name__)
+            config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+            
+            if not config_path.exists():
+                click.echo(f"[red]Claude Desktop config not found at {config_path}[/red]")
+                return
+            
+            try:
+                # Read existing config
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Check if installed
+                if 'mcpServers' not in config or name not in config['mcpServers']:
+                    click.echo(f"[yellow]Server '{name}' not found in Claude Desktop configuration[/yellow]")
+                    return
+                
+                # Remove server configuration
+                del config['mcpServers'][name]
+                
+                # Write updated config
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+                
+                click.echo(f"[green]✓ Uninstalled '{name}' MCP server from Claude Desktop[/green]")
+                click.echo("[yellow]Restart Claude Desktop to apply changes[/yellow]")
+                
+                logger.info("mcp_server_uninstalled", name=name, config_path=str(config_path))
+                
+            except Exception as e:
+                click.echo(f"[red]Failed to uninstall: {e}[/red]")
+                logger.error("mcp_uninstall_failed", error=str(e))
