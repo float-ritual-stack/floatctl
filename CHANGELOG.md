@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tool calls replaced in markdown with safe reference format: `{Tool Call: id → filename:line}`
   - Tool results replaced with: `{Tool Result: id → filename:line}`
   - Uses curly braces to avoid markdown/HTML parsing issues
+- Thinking blocks support in conversation processing
+  - Preserves Claude's `<thinking>` blocks in markdown exports
+  - Maintains thinking content structure and formatting
+  - Supports both JSON and markdown output formats
+- Attachment directory creation and management
+  - Automatically creates attachment directories for conversations with attachments
+  - Preserves attachment metadata and file references
+  - Handles PDF and other file types referenced in conversations
 - Pattern extraction feature for markdown exports
   - Extracts `::` markers with line numbers and content
   - Extracts `float.*` function calls with line numbers

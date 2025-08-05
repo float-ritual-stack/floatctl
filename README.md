@@ -172,6 +172,15 @@ Example tool calls file:
 {"id": "toolu_01ABC", "type": "tool_result", "output": "File contents here...", "is_error": false, "message_index": 1, "content_index": 2, "sender": "assistant", "created_at": "2025-07-13T10:00:06Z", "line_number": 2}
 ```
 
+### Thinking Blocks and Attachments
+
+FloatCtl handles advanced conversation features:
+
+- **Thinking Blocks**: Preserves Claude's `<thinking>` blocks in markdown exports
+- **Attachments**: Automatically creates attachment directories for conversations with file references
+- **PDF Support**: Handles PDF attachments and maintains file metadata
+- **Structure Preservation**: Maintains original conversation structure including thinking content
+
 ### Filename Generation
 
 FloatCtl generates clean, readable filenames:
