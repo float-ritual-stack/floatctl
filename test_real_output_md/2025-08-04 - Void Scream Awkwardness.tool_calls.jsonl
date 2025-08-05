@@ -1,0 +1,2 @@
+{"id": null, "type": "tool_use", "name": "web_fetch", "input": {"url": "https://lf1m.ritualstack.ai"}, "message_index": 5, "content_index": 1, "sender": "assistant", "created_at": "2025-08-04T11:04:36.443174Z", "line_number": 1}
+{"id": null, "type": "tool_result", "output": null, "is_error": false, "message_index": 5, "content_index": 2, "sender": "assistant", "created_at": "2025-08-04T11:04:36.443174Z", "line_number": 2}

@@ -1,0 +1,67 @@
+[
+{
+  "uuid": "test-attachments-123",
+  "name": "Test Conversation with Attachments",
+  "created_at": "2025-08-04T10:00:00Z",
+  "updated_at": "2025-08-04T11:00:00Z",
+  "chat_messages": [
+    {
+      "sender": "human",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here's a small code snippet:",
+          "start_timestamp": "2025-08-04T10:00:00Z"
+        }
+      ],
+      "attachments": [
+        {
+          "file_name": "pasted.txt",
+          "file_size": 120,
+          "file_type": "text/plain",
+          "extracted_content": "def hello_world():\n    print('Hello, World!')\n\nhello_world()"
+        }
+      ],
+      "created_at": "2025-08-04T10:00:00Z",
+      "updated_at": "2025-08-04T10:00:00Z"
+    },
+    {
+      "sender": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "That's a simple Python function that prints 'Hello, World!'."
+        }
+      ],
+      "attachments": [],
+      "created_at": "2025-08-04T10:01:00Z",
+      "updated_at": "2025-08-04T10:01:00Z"
+    },
+    {
+      "sender": "human",
+      "content": [
+        {
+          "type": "text",
+          "text": "And here's a larger document:"
+        }
+      ],
+      "attachments": [
+        {
+          "file_name": "report.pdf",
+          "file_size": 24184,
+          "file_type": "application/pdf",
+          "extracted_content": "Annual Report 2024\n\nExecutive Summary\nThis report covers the key achievements and challenges faced during the fiscal year 2024...\n\n[Content continues for many pages...]"
+        },
+        {
+          "file_name": "data.csv",
+          "file_size": 2048,
+          "file_type": "text/csv",
+          "extracted_content": "Date,Sales,Revenue\n2024-01-01,100,5000\n2024-01-02,120,6000\n2024-01-03,95,4750"
+        }
+      ],
+      "created_at": "2025-08-04T10:02:00Z",
+      "updated_at": "2025-08-04T10:02:00Z"
+    }
+  ]
+}
+]

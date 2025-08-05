@@ -1,0 +1,2 @@
+{"id": null, "type": "tool_use", "name": "chroma_list_collections", "input": {}, "message_index": 1, "content_index": 1, "sender": "assistant", "created_at": "2025-08-04T14:23:48.453425Z", "line_number": 1}
+{"id": null, "type": "tool_result", "output": null, "is_error": true, "message_index": 1, "content_index": 2, "sender": "assistant", "created_at": "2025-08-04T14:23:48.453425Z", "line_number": 2}

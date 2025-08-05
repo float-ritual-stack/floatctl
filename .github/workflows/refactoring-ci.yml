@@ -1,0 +1,125 @@
+name: Refactoring CI
+
+on:
+  push:
+    branches: [ refactor/foundation-improvements ]
+  pull_request:
+    branches: [ refactor/foundation-improvements, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+    
+    - name: Run regression tests
+      run: |
+        uv run pytest tests/ -v --cov=floatctl --cov-report=xml --cov-report=term-missing
+    
+    - name: Run type checking
+      run: |
+        uv run mypy src/floatctl
+    
+    - name: Run linting
+      run: |
+        uv run ruff check src/
+        uv run ruff format --check src/
+    
+    - name: Test CLI commands (smoke test)
+      run: |
+        uv run floatctl --help
+        uv run floatctl conversations --help
+        uv run floatctl chroma --help
+        uv run floatctl forest --help
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+  compatibility-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+    
+    - name: Set up Python
+      run: uv python install 3.11
+    
+    - name: Install dependencies
+      run: uv sync --all-extras
+    
+    - name: Run compatibility tests
+      run: |
+        # Test that all plugins load
+        uv run python -c "
+        from floatctl.plugin_manager import PluginManager
+        manager = PluginManager()
+        manager.load_plugins()
+        expected = ['conversations', 'chroma', 'forest', 'artifacts', 'export']
+        loaded = list(manager.plugins.keys())
+        for plugin in expected:
+            assert plugin in loaded, f'Plugin {plugin} not loaded'
+        print(f'✓ All {len(loaded)} plugins loaded successfully')
+        "
+        
+        # Test CLI structure hasn't changed
+        uv run floatctl --help | grep -q "conversations"
+        uv run floatctl --help | grep -q "chroma" 
+        uv run floatctl --help | grep -q "forest"
+        echo "✓ CLI structure preserved"
+
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+    
+    - name: Set up Python
+      run: uv python install 3.11
+    
+    - name: Install dependencies
+      run: uv sync --all-extras
+    
+    - name: Performance baseline test
+      run: |
+        # Test plugin loading time
+        time uv run python -c "
+        from floatctl.plugin_manager import PluginManager
+        import time
+        start = time.time()
+        manager = PluginManager()
+        manager.load_plugins()
+        duration = time.time() - start
+        print(f'Plugin loading took {duration:.3f}s')
+        assert duration < 2.0, f'Plugin loading too slow: {duration}s'
+        "
+        
+        # Test CLI startup time
+        time uv run floatctl --help > /dev/null
+        echo "✓ Performance baseline maintained"
