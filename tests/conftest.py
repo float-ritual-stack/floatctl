@@ -5,6 +5,14 @@ from pathlib import Path
 import tempfile
 import shutil
 
+from floatctl.core.logging import setup_quiet_logging
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_logging():
+    """Setup quiet logging for all tests to avoid structlog configuration issues."""
+    setup_quiet_logging()
+
 
 @pytest.fixture
 def temp_dir():

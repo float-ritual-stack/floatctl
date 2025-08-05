@@ -13,6 +13,12 @@ from floatctl.core.database import DatabaseManager, ProcessingStatus, FileRun, B
 class TestDatabaseManager:
     """Test the DatabaseManager class."""
     
+    @pytest.fixture(autouse=True)
+    def setup_logging(self):
+        """Setup logging for database tests."""
+        from floatctl.core.logging import setup_quiet_logging
+        setup_quiet_logging()
+    
     @pytest.fixture
     def temp_db(self):
         """Create a temporary database for testing."""
