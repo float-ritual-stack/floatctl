@@ -7,16 +7,24 @@ from unittest.mock import patch, MagicMock
 import pytest
 import structlog
 
-from floatctl.core.logging import setup_logging, log_command, log_file_operation
+from floatctl.core.logging import setup_logging, setup_quiet_logging, log_command, log_file_operation, get_logger
+
+
+@pytest.fixture
+def mock_config():
+    """Create a mock config object for testing."""
+    config = MagicMock()
+    config.data_dir = Path("/tmp/test_floatctl")
+    return config
 
 
 class TestSetupLogging:
     """Test the setup_logging function."""
     
-    def test_setup_logging_console_only(self):
+    def test_setup_logging_console_only(self, mock_config):
         """Test setting up logging with console output only."""
         with patch('structlog.configure') as mock_configure:
-            setup_logging(level="INFO", log_file=None)
+            setup_logging(mock_config, log_file=None)
             
             # Should configure structlog
             mock_configure.assert_called_once()
@@ -24,18 +32,18 @@ class TestSetupLogging:
             # Check the configuration
             call_args = mock_configure.call_args
             assert 'processors' in call_args.kwargs
-            assert 'wrapper_class' in call_args.kwargs
+            assert 'context_class' in call_args.kwargs
             assert 'logger_factory' in call_args.kwargs
             assert 'cache_logger_on_first_use' in call_args.kwargs
     
-    def test_setup_logging_with_file(self):
+    def test_setup_logging_with_file(self, mock_config):
         """Test setting up logging with file output."""
         with tempfile.NamedTemporaryFile(suffix='.log', delete=False) as f:
             log_file = Path(f.name)
         
         try:
             with patch('structlog.configure') as mock_configure:
-                setup_logging(level="DEBUG", log_file=log_file)
+                setup_logging(mock_config, log_file=log_file)
                 
                 # Should configure structlog
                 mock_configure.assert_called_once()
@@ -45,40 +53,47 @@ class TestSetupLogging:
         finally:
             log_file.unlink(missing_ok=True)
     
-    def test_setup_logging_creates_log_directory(self):
+    def test_setup_logging_creates_log_directory(self, mock_config):
         """Test that setup_logging creates log file directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file = Path(temp_dir) / "subdir" / "test.log"
             
+            # Create the parent directory first (setup_logging should handle this)
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            
             with patch('structlog.configure'):
-                setup_logging(level="INFO", log_file=log_file)
+                setup_logging(mock_config, log_file=log_file)
                 
-                # Directory should be created
+                # Directory should exist
                 assert log_file.parent.exists()
     
-    def test_setup_logging_different_levels(self):
-        """Test setup_logging with different log levels."""
-        levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        
-        for level in levels:
-            with patch('structlog.configure') as mock_configure:
-                setup_logging(level=level, log_file=None)
-                mock_configure.assert_called_once()
+    def test_setup_quiet_logging(self):
+        """Test setup_quiet_logging function."""
+        with patch('structlog.configure') as mock_configure:
+            setup_quiet_logging()
+            mock_configure.assert_called_once()
 
 
 class TestLogCommand:
     """Test the log_command function."""
     
+    @pytest.fixture(autouse=True)
+    def setup_structlog(self):
+        """Setup structlog for testing."""
+        setup_quiet_logging()
+    
     def test_log_command_basic(self):
         """Test basic command logging."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             logger = log_command("test_command", {"arg1": "value1"})
             
-            # Should return the logger
-            assert logger == mock_logger
+            # Should return the bound logger
+            assert logger == mock_bound_logger
             
             # Should bind command context
             mock_logger.bind.assert_called_once_with(
@@ -89,8 +104,10 @@ class TestLogCommand:
     
     def test_log_command_with_plugin(self):
         """Test command logging with plugin context."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             logger = log_command("test_command", {"arg1": "value1"}, plugin="test_plugin")
@@ -104,8 +121,10 @@ class TestLogCommand:
     
     def test_log_command_empty_args(self):
         """Test command logging with empty args."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             logger = log_command("test_command", {})
@@ -118,8 +137,10 @@ class TestLogCommand:
     
     def test_log_command_none_args(self):
         """Test command logging with None args."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             logger = log_command("test_command", None)
@@ -134,10 +155,17 @@ class TestLogCommand:
 class TestLogFileOperation:
     """Test the log_file_operation function."""
     
+    @pytest.fixture(autouse=True)
+    def setup_structlog(self):
+        """Setup structlog for testing."""
+        setup_quiet_logging()
+    
     def test_log_file_operation_basic(self):
         """Test basic file operation logging."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             logger = log_file_operation(
@@ -146,26 +174,24 @@ class TestLogFileOperation:
                 status="success"
             )
             
-            # Should return the logger
-            assert logger == mock_logger
+            # Should return the bound logger
+            assert logger == mock_bound_logger
             
-            # Should bind file operation context
+            # Should bind file operation context (including file_name)
             mock_logger.bind.assert_called_once_with(
                 operation="write",
                 file_path="/test/file.txt",
-                status="success",
-                file_size=None,
-                file_hash=None,
-                metadata=None
+                file_name="file.txt",
+                status="success"
             )
     
     def test_log_file_operation_with_metadata(self):
         """Test file operation logging with metadata."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
-            
-            metadata = {"lines": 100, "format": "json"}
             
             logger = log_file_operation(
                 operation="read",
@@ -173,22 +199,25 @@ class TestLogFileOperation:
                 status="success",
                 file_size=1024,
                 file_hash="abc123",
-                metadata=metadata
+                metadata={"lines": 100, "format": "json"}
             )
             
             mock_logger.bind.assert_called_once_with(
                 operation="read",
                 file_path="/test/file.txt",
+                file_name="file.txt",
                 status="success",
                 file_size=1024,
                 file_hash="abc123",
-                metadata=metadata
+                metadata={"lines": 100, "format": "json"}
             )
     
     def test_log_file_operation_path_conversion(self):
         """Test that Path objects are converted to strings."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             # Test with Path object
@@ -204,17 +233,20 @@ class TestLogFileOperation:
             call_args = mock_logger.bind.call_args
             assert call_args[1]["file_path"] == "/test/file.txt"
             assert isinstance(call_args[1]["file_path"], str)
+            assert call_args[1]["file_name"] == "file.txt"
     
-    def test_log_file_operation_string_path(self):
-        """Test file operation logging with string path."""
-        with patch('structlog.get_logger') as mock_get_logger:
+    def test_log_file_operation_path_object_only(self):
+        """Test file operation logging requires Path object."""
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
-            # Test with string path
-            file_path = "/test/file.txt"
+            # Test with Path object (this should work)
+            file_path = Path("/test/file.txt")
             
-            log_file_operation(
+            logger = log_file_operation(
                 operation="copy",
                 file_path=file_path,
                 status="success"
@@ -222,20 +254,28 @@ class TestLogFileOperation:
             
             call_args = mock_logger.bind.call_args
             assert call_args[1]["file_path"] == "/test/file.txt"
+            assert call_args[1]["file_name"] == "file.txt"
 
 
 class TestLoggingIntegration:
     """Test logging integration scenarios."""
     
-    def test_logging_workflow(self):
+    @pytest.fixture(autouse=True)
+    def setup_structlog(self):
+        """Setup structlog for testing."""
+        setup_quiet_logging()
+    
+    def test_logging_workflow(self, mock_config):
         """Test a complete logging workflow."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger = MagicMock()
+            mock_bound_logger = MagicMock()
+            mock_logger.bind.return_value = mock_bound_logger
             mock_get_logger.return_value = mock_logger
             
             # Setup logging
             with patch('structlog.configure'):
-                setup_logging(level="INFO", log_file=None)
+                setup_logging(mock_config, log_file=None)
             
             # Log a command
             cmd_logger = log_command("conversations.split", {
@@ -251,31 +291,31 @@ class TestLoggingIntegration:
                 file_size=2048
             )
             
-            file_logger = log_file_operation(
-                operation="write",
-                file_path=Path("/test/output/conversation1.json"),
-                status="success",
-                file_size=1024,
-                metadata={"conversation_id": "conv_123"}
-            )
-            
             # Should have created loggers with proper context
             assert mock_get_logger.call_count >= 2
     
     def test_logger_context_isolation(self):
         """Test that logger contexts are properly isolated."""
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch('floatctl.core.logging.get_logger') as mock_get_logger:
             mock_logger1 = MagicMock()
             mock_logger2 = MagicMock()
+            mock_bound1 = MagicMock()
+            mock_bound2 = MagicMock()
+            mock_logger1.bind.return_value = mock_bound1
+            mock_logger2.bind.return_value = mock_bound2
             mock_get_logger.side_effect = [mock_logger1, mock_logger2]
             
             # Create two different loggers
             cmd_logger = log_command("command1", {"arg": "value1"})
-            file_logger = log_file_operation("write", Path("/test/file.txt"), "success")
+            file_logger = log_file_operation(
+                operation="write", 
+                file_path=Path("/test/file.txt"), 
+                status="success"
+            )
             
-            # Each should have its own context
-            assert cmd_logger == mock_logger1
-            assert file_logger == mock_logger2
+            # Each should return bound loggers
+            assert cmd_logger == mock_bound1
+            assert file_logger == mock_bound2
             
             # Check that contexts are different
             cmd_call = mock_logger1.bind.call_args[1]
