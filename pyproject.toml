@@ -69,6 +69,7 @@ repl = "floatctl.plugins.interactive_repl:InteractiveREPLPlugin"
 textual = "floatctl.plugins.textual_float:TextualFloatPlugin"
 float-simple = "floatctl.plugins.textual_float_simple:SimpleTextualFloatPlugin"
 mcp = "floatctl.plugins.mcp_server:MCPServerPlugin"
+dev-tools = "floatctl.plugins.dev_tools:DevToolsPlugin"
 
 [dependency-groups]
 dev = [
