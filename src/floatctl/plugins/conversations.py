@@ -531,7 +531,16 @@ class ConversationsPlugin(PluginBase):
         
         return jsonl_path
     
-    def _format_conversation_markdown(self, conversation: Dict[str, Any], tool_calls_file: Optional[Path]) -> str:
+    def _extract_and_save_attachments(self, conversation: Dict[str, Any], base_path: Path) -> Dict[str, Any]:
+        """Extract and save attachments from conversation. Stub implementation."""
+        # TODO: Implement attachment extraction
+        return {
+            'attachments': [],
+            'attachment_count': 0,
+            'total_size': 0
+        }
+    
+    def _format_conversation_markdown(self, conversation: Dict[str, Any], tool_calls_file: Optional[Path] = None, attachment_info: Optional[Dict[str, Any]] = None) -> str:
         """Format conversation as markdown with tool call references."""
         # First, generate the main content to extract patterns from it
         content_lines = []
