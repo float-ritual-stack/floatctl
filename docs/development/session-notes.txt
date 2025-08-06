@@ -1008,7 +1008,7 @@
      │ No such option: --filter                                                     │
      ╰──────────────────────────────────────────────────────────────────────────────╯
                                                                                      
-      To find out more, visit https://github.com/evanschultz/floatctl
+      To find out more, visit https://github.com/float-ritual-stack/floatctl
 
 ⏺ Let me check peek options...
 
