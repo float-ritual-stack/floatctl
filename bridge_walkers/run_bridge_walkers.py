@@ -15,8 +15,8 @@ import argparse
 import asyncio
 import json
 from datetime import datetime
-from bridge_walker_pocketflow import create_bridge_walker_flow, run_multi_walker_session
-from bridge_walker_mcp_integration import run_multi_walker_mcp_session, create_mcp_bridge_walker_flow
+from implementations.pocketflow import create_bridge_walker_flow, run_multi_walker_session
+from implementations.mcp_integration import run_multi_walker_mcp_session, create_mcp_bridge_walker_flow
 
 def print_banner():
     print("""

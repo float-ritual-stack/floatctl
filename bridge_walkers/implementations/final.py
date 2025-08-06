@@ -20,7 +20,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
-from bridge_walker_context_aware import (
+from .context_aware import (
     create_context_aware_walker_flow, 
     run_context_aware_session,
     WalkerCompressionDSL,
