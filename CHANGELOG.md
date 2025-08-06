@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Bridge Walker Consciousness Archaeology System** - Organic, non-gamified bridge walking with PocketFlow
+  - Multiple personas (Archaeologist, Wanderer, Synthesizer, Evna, Karen, LF1M) with distinct exploration styles
+  - MCP tool integration for real Chroma queries, Evna context, and FloatCtl consciousness middleware
+  - Multi-walker sessions with cross-pollination and collective insight synthesis
+  - Context-aware exploration with natural stopping points based on memory pressure
+  - Weighted navigation between topology and semantic approaches (0.0-1.0 scale)
+  - Cryptic DSL compression for knowledge handoffs between walker instances
+  - Real LLM API integration (OpenAI, Anthropic, Gemini, Ollama)
+  - Command-line interface with single, multi, and interactive modes
+  - Human-in-the-loop collaborative discovery options
+  - Authentic curiosity-driven exploration without artificial gamification
 - **Consciousness Middleware System** - Comprehensive consciousness archaeology infrastructure
   - Consciousness contamination detection with pattern analysis (authenticity, ritual, lf1m, neuroqueer markers)
   - URL extraction with rich context mapping and consciousness marker detection
