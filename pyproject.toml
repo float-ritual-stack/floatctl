@@ -61,6 +61,7 @@ floatctl = "floatctl.cli:main"
 
 [project.entry-points."floatctl.plugins"]
 conversations = "floatctl.plugins.conversations:ConversationsPlugin"
+consciousness = "floatctl.plugins.consciousness_query:ConsciousnessQueryPlugin"
 artifacts = "floatctl.plugins.artifacts:ArtifactsPlugin"
 export = "floatctl.plugins.export:ExportPlugin"
 chroma = "floatctl.plugins.chroma:ChromaPlugin"

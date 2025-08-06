@@ -8,6 +8,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Consciousness Middleware System** - Comprehensive consciousness archaeology infrastructure
+  - Consciousness contamination detection with pattern analysis (authenticity, ritual, lf1m, neuroqueer markers)
+  - URL extraction with rich context mapping and consciousness marker detection
+  - Work project classification (rangle_airbender, float_ecosystem, consciousness_tech, general_dev)
+  - Float.dispatch publishing opportunity identification across 6 imprints
+  - 6 SQLite tables for structured consciousness analysis storage
+  - Automatic integration with conversation processing pipeline
+- **Workflow Intelligence System** - Human memory prosthetic for practical daily questions
+  - "What did I do last week?" - Completed activities by project with context
+  - "Action items from Nick" - Prioritized tasks from Nick with context and dates
+  - "Current priorities" - Explicit priorities and open action items
+  - "Forgotten tasks" - Old open action items that might need attention
+  - "Meeting follow-ups" - Action items from meetings with priority levels
+  - Smart pattern extraction for TODO items, meeting actions, priority indicators
+  - New conversation commands: `last-week`, `nick-actions`, `priorities`, `forgotten`, `meetings`
+- **Consciousness Query Plugin** - Dedicated plugin for querying consciousness analysis results
+  - Rich CLI interface with tables, panels, and progress bars
+  - Multiple query types: contamination, projects, URLs, dispatch, timeline, summary
+  - Semantic search integration across consciousness analysis collections
+  - Filtering by contamination level, work project, priority, date ranges
+  - Export capabilities for analysis results
+- **Chroma Integration Bridge** - Hybrid SQLite + Chroma query system
+  - Syncs consciousness analysis to 3 new Chroma collections for semantic search
+  - consciousness_analysis, consciousness_url_contexts, consciousness_dispatch_opportunities
+  - `--sync-to-chroma` flag for optional Chroma sync during conversation processing
+  - Semantic search across consciousness data with metadata filtering
+- **Evna MCP Integration** - Direct SQLite database access for intelligent query routing
+  - evna_what_did_i_do_last_week(), evna_action_items_from_nick(), evna_current_priorities()
+  - evna_forgotten_tasks(), evna_meeting_follow_ups(), evna_workflow_summary()
+  - Structured SQL queries instead of fumbling with Chroma metadata
+  - Intelligent routing based on question type and intent
+- **Enhanced Plugin Development Ecosystem** - Comprehensive guides and tools
+  - PLUGIN_DEVELOPMENT_GUIDE.md with visual examples and templates
+  - PLUGIN_TROUBLESHOOTING.md with common issues and diagnostic commands
+  - Enhanced AGENTS.md and README.md with critical plugin development rules
+  - Clear warnings about register_commands() method requirement
+  - Documentation of existing scaffolding tools: `floatctl dev scaffold`, validation, templates
+- **Fixed Shell Completion System** - Reliable tab completion for all commands
+  - Proper zsh/bash detection and installation with setup_completion_fixed.sh
+  - Logging suppression during completion to prevent interference
+  - Working completion for all plugins and subcommands
+  - Completion for consciousness query commands and workflow intelligence
+
+### Added (Previous)
 - MCP (Model Context Protocol) server plugin - "Evna Context Concierge"
   - Natural context capture with `ctx::` markers
   - Flexible timestamp parsing (supports `@`, `-`, various formats with seconds)

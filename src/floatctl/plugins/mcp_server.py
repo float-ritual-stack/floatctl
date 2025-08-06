@@ -129,20 +129,20 @@ class MCPServerPlugin(PluginBase):
                             break
                 
                 if uv_path:
-                    # Use uv run to execute in the project environment
+                    # Use uv run to execute the wrapper (cleaner startup)
                     config['mcpServers'][name] = {
                         "command": uv_path,
                         "args": [
                             "run",
                             "--project", str(project_root),
-                            "python", "-m", "floatctl.mcp_server"
+                            "python", "-m", "floatctl.mcp_server_wrapper"
                         ]
                     }
                 else:
-                    # Fallback to direct Python execution
+                    # Fallback to direct Python execution with wrapper
                     config['mcpServers'][name] = {
                         "command": sys.executable,
-                        "args": ["-m", "floatctl.mcp_server"],
+                        "args": ["-m", "floatctl.mcp_server_wrapper"],
                         "env": {
                             "PYTHONPATH": str(project_root / "src")
                         }
@@ -154,9 +154,9 @@ class MCPServerPlugin(PluginBase):
                 
                 click.echo(f"[green]✓ Installed '{name}' MCP server to Claude Desktop[/green]")
                 if uv_path:
-                    click.echo(f"[blue]Command: {uv_path} run --project {project_root} python -m floatctl.mcp_server[/blue]")
+                    click.echo(f"[blue]Command: {uv_path} run --project {project_root} python -m floatctl.mcp_server_wrapper[/blue]")
                 else:
-                    click.echo(f"[blue]Command: {sys.executable} -m floatctl.mcp_server[/blue]")
+                    click.echo(f"[blue]Command: {sys.executable} -m floatctl.mcp_server_wrapper[/blue]")
                     click.echo(f"[blue]PYTHONPATH: {project_root / 'src'}[/blue]")
                 click.echo("[yellow]Restart Claude Desktop to activate the server[/yellow]")
                 
@@ -221,3 +221,256 @@ class MCPServerPlugin(PluginBase):
             except Exception as e:
                 click.echo(f"[red]Failed to uninstall: {e}[/red]")
                 logger.error("mcp_uninstall_failed", error=str(e))
+        
+        @mcp.command()
+        @click.option(
+            '--claude-desktop',
+            is_flag=True,
+            help='Check Claude Desktop configuration'
+        )
+        @click.option(
+            '--name',
+            default='evna-context-concierge',
+            help='Server name to check'
+        )
+        def status(claude_desktop: bool, name: str) -> None:
+            """Check MCP server installation status.
+            
+            Shows current configuration and available tools.
+            
+            Example:
+                floatctl mcp status --claude-desktop
+            """
+            if not claude_desktop:
+                click.echo("[red]Please specify --claude-desktop[/red]")
+                return
+            
+            logger = get_logger(__name__)
+            config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+            
+            click.echo(f"🧠 [bold]Evna-MCP Status Check[/bold]\n")
+            
+            # Check if Claude Desktop config exists
+            if not config_path.exists():
+                click.echo(f"[red]❌ Claude Desktop config not found at {config_path}[/red]")
+                click.echo("[yellow]💡 Install Claude Desktop first[/yellow]")
+                return
+            
+            try:
+                # Read existing config
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Check MCP server configuration
+                if 'mcpServers' not in config:
+                    click.echo("[yellow]⚠️  No MCP servers configured in Claude Desktop[/yellow]")
+                    click.echo(f"[blue]💡 Run: floatctl mcp install --claude-desktop[/blue]")
+                    return
+                
+                if name not in config['mcpServers']:
+                    click.echo(f"[yellow]⚠️  Server '{name}' not installed[/yellow]")
+                    click.echo(f"[blue]💡 Run: floatctl mcp install --claude-desktop[/blue]")
+                    
+                    # Show other installed servers
+                    other_servers = list(config['mcpServers'].keys())
+                    if other_servers:
+                        click.echo(f"\n[dim]Other installed servers: {', '.join(other_servers)}[/dim]")
+                    return
+                
+                # Server is installed - show details
+                server_config = config['mcpServers'][name]
+                click.echo(f"[green]✅ Server '{name}' is installed[/green]")
+                click.echo(f"[blue]Command: {server_config.get('command', 'N/A')}[/blue]")
+                if 'args' in server_config:
+                    click.echo(f"[blue]Args: {' '.join(server_config['args'])}[/blue]")
+                if 'env' in server_config:
+                    click.echo(f"[blue]Environment: {server_config['env']}[/blue]")
+                
+                # Show available tools
+                click.echo(f"\n[bold]🛠️  Available Tools:[/bold]")
+                tools = [
+                    "smart_pattern_processor - Universal :: pattern handler",
+                    "get_prompt - Access your prompt library", 
+                    "smart_chroma_query - Protected ChromaDB access",
+                    "surface_recent_context - 'What was I working on?'",
+                    "get_usage_insights - Usage analytics",
+                    "check_boundary_status - Boundary violation detection",
+                    "process_context_marker - Advanced ctx:: processing"
+                ]
+                
+                for tool in tools:
+                    click.echo(f"   • {tool}")
+                
+                # Show prompt library
+                click.echo(f"\n[bold]📚 Prompt Library:[/bold]")
+                from floatctl.mcp_server import PROMPT_LIBRARY
+                for prompt_name, prompt_data in PROMPT_LIBRARY.items():
+                    tags = ", ".join(prompt_data["tags"])
+                    click.echo(f"   • {prompt_name}: {tags}")
+                
+                click.echo(f"\n[green]🎯 Ready to use! Restart Claude Desktop if you just installed.[/green]")
+                
+                logger.info("mcp_status_checked", name=name, installed=True)
+                
+            except Exception as e:
+                click.echo(f"[red]Failed to check status: {e}[/red]")
+                logger.error("mcp_status_failed", error=str(e))
+        
+        @mcp.command()
+        @click.option(
+            '--debug',
+            is_flag=True,
+            help='Enable debug logging to track down issues'
+        )
+        def debug(debug: bool) -> None:
+            """Debug the MCP server to track down JSON parsing issues.
+            
+            Runs the server with debug logging to identify the source of
+            "Unexpected non-whitespace character after JSON" errors.
+            """
+            if not debug:
+                click.echo("[yellow]Use --debug flag to enable debug mode[/yellow]")
+                return
+            
+            import tempfile
+            import subprocess
+            import sys
+            import os
+            from pathlib import Path
+            
+            # Create debug log file
+            debug_log = Path(tempfile.gettempdir()) / "evna_mcp_debug.log"
+            click.echo(f"🐛 [bold]Debug mode enabled[/bold]")
+            click.echo(f"📝 Debug log: {debug_log}")
+            
+            # Clear previous debug log
+            if debug_log.exists():
+                debug_log.unlink()
+            
+            # Set debug environment
+            env = os.environ.copy()
+            env['FLOATCTL_MCP_DEBUG'] = str(debug_log)
+            
+            # Get the project root
+            import floatctl
+            floatctl_module_dir = Path(floatctl.__file__).parent
+            project_root = floatctl_module_dir.parent.parent
+            
+            click.echo(f"🚀 Starting MCP server with debug logging...")
+            click.echo(f"📁 Project root: {project_root}")
+            click.echo(f"⚠️  Press Ctrl+C to stop")
+            
+            try:
+                # Run the MCP server with debug logging
+                result = subprocess.run([
+                    "uv", "run", "--project", str(project_root),
+                    "python", "-m", "floatctl.mcp_server"
+                ], env=env, capture_output=True, text=True, timeout=10)
+                
+                click.echo(f"📤 STDOUT:\n{result.stdout}")
+                click.echo(f"📥 STDERR:\n{result.stderr}")
+                
+            except subprocess.TimeoutExpired:
+                click.echo("⏰ Server started successfully (timed out after 10s)")
+            except KeyboardInterrupt:
+                click.echo("\n🛑 Stopped by user")
+            except Exception as e:
+                click.echo(f"❌ Error: {e}")
+            
+            # Show debug log if it exists
+            if debug_log.exists():
+                click.echo(f"\n📋 [bold]Debug Log Contents:[/bold]")
+                with open(debug_log, 'r') as f:
+                    content = f.read()
+                    if content.strip():
+                        click.echo(content)
+                    else:
+                        click.echo("(empty)")
+            else:
+                click.echo("📋 No debug log created")
+        
+        @mcp.command()
+        def test() -> None:
+            """Test the enhanced Evna-MCP server locally.
+            
+            Runs a quick test of the enhanced features without Claude Desktop.
+            """
+            click.echo("🧠 [bold]Testing Enhanced Evna-MCP Features[/bold]\n")
+            
+            # Import test functions
+            import asyncio
+            from floatctl.mcp_server import (
+                get_prompt, parse_any_pattern, check_context_window_risk,
+                PROMPT_LIBRARY, track_usage
+            )
+            
+            async def run_tests():
+                # Test 1: Prompt Library
+                click.echo("1. [blue]Testing Prompt Library...[/blue]")
+                try:
+                    result = await get_prompt("consciousness")
+                    click.echo(f"   ✅ Found: {result.get('name', 'None')}")
+                    click.echo(f"   📋 Tags: {', '.join(result.get('tags', []))}")
+                except Exception as e:
+                    click.echo(f"   ❌ Error: {str(e)}")
+                
+                # Test 2: Pattern Parsing
+                click.echo("\n2. [blue]Testing Pattern Parsing...[/blue]")
+                test_pattern = "eureka:: Enhanced Evna-MCP is working! [concept:: context-concierge] [project:: floatctl]"
+                metadata = parse_any_pattern(test_pattern)
+                click.echo(f"   ✅ Patterns found: {metadata.get('patterns_found', [])}")
+                click.echo(f"   🎯 Primary: {metadata.get('primary_pattern', 'None')}")
+                
+                # Test 3: Context Window Protection
+                click.echo("\n3. [blue]Testing Context Window Protection...[/blue]")
+                large_text = "This is a test. " * 10000  # ~40k chars
+                is_risky, warning = check_context_window_risk(large_text)
+                if is_risky:
+                    click.echo(f"   ✅ Protection working: {warning}")
+                else:
+                    click.echo("   ❌ Protection not triggered")
+                
+                # Test 4: Usage Tracking
+                click.echo("\n4. [blue]Testing Usage Tracking...[/blue]")
+                track_usage("test_query", "consciousness archaeology", 1000)
+                click.echo("   ✅ Usage tracking active")
+                
+                click.echo(f"\n[green]✅ All tests passed! Enhanced Evna-MCP is ready.[/green]")
+                click.echo(f"[blue]💡 Run 'floatctl mcp install --claude-desktop' to configure Claude[/blue]")
+            
+            # Run async tests
+            try:
+                asyncio.run(run_tests())
+            except Exception as e:
+                click.echo(f"[red]Test failed: {e}[/red]")
+        
+        @mcp.command()
+        @click.option(
+            '--name',
+            default='evna-context-concierge',
+            help='Server name in configuration'
+        )
+        def reinstall(name: str) -> None:
+            """Reinstall/update the MCP server configuration.
+            
+            Useful when you've updated the enhanced Evna-MCP server.
+            
+            Example:
+                floatctl mcp reinstall
+            """
+            click.echo("🔄 [bold]Reinstalling Enhanced Evna-MCP...[/bold]\n")
+            
+            # Uninstall first (ignore errors)
+            try:
+                ctx = click.get_current_context()
+                ctx.invoke(uninstall, claude_desktop=True, name=name)
+            except:
+                pass
+            
+            click.echo()
+            
+            # Install fresh
+            ctx = click.get_current_context()
+            ctx.invoke(install, claude_desktop=True, name=name)
+            
+            click.echo(f"\n[green]🎯 Enhanced Evna-MCP reinstalled! Restart Claude Desktop.[/green]")

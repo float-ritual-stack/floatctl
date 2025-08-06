@@ -417,15 +417,75 @@ Configuration is loaded from (in order):
 
 ## Creating Plugins
 
-To create a new plugin:
+### 🚀 Quick Start: Use Plugin Scaffolding
 
-1. Inherit from `PluginBase` in `plugin_manager.py`
-2. Implement the `register_commands()` method
-3. Add entry point in `pyproject.toml`:
+**Generate a working plugin automatically:**
+
+```bash
+# Generate a basic plugin
+floatctl dev scaffold my_plugin --output-dir ./plugins
+
+# Interactive mode with prompts
+floatctl dev scaffold my_plugin --interactive
+
+# Generate a middleware-style plugin  
+floatctl dev scaffold my_plugin --middleware
+```
+
+This creates a complete plugin structure with proper `register_commands()` method and avoids common mistakes!
+
+### 🚨 CRITICAL: Plugin Command Registration
+
+**ALL commands MUST be defined INSIDE the `register_commands()` method!**
+
+To create a plugin manually:
+
+1. **Inherit from `PluginBase`** and implement `register_commands()` method
+2. **Define ALL commands inside the method** (common mistake: commands outside method won't work)
+3. **Add entry point** in `pyproject.toml`:
    ```toml
    [project.entry-points."floatctl.plugins"]
    your_plugin = "floatctl.plugins.your_plugin:YourPlugin"
    ```
+
+### Quick Plugin Template
+
+```python
+from floatctl.plugin_manager import PluginBase
+import rich_click as click
+from rich.console import Console
+
+class YourPlugin(PluginBase):
+    name = "yourplugin"
+    description = "Your plugin description"
+    version = "1.0.0"
+    
+    def register_commands(self, cli_group: click.Group) -> None:
+        """Register ALL commands inside this method."""
+        
+        @cli_group.group()
+        @click.pass_context
+        def yourplugin(ctx: click.Context) -> None:
+            """Your plugin commands."""
+            pass
+        
+        # ✅ ALL commands must be defined HERE
+        @yourplugin.command()
+        @click.pass_context
+        def hello(ctx: click.Context) -> None:
+            """Say hello."""
+            Console().print("[green]Hello from your plugin![/green]")
+```
+
+### Plugin Development Checklist
+
+1. **✅ Class inherits from `PluginBase`**
+2. **✅ All commands inside `register_commands()` method**
+3. **✅ Entry point added to `pyproject.toml`**
+4. **✅ Test registration**: `uv run floatctl --help | grep yourplugin`
+5. **✅ Test commands**: `uv run floatctl yourplugin --help`
+
+**📖 See `PLUGIN_DEVELOPMENT_GUIDE.md` for complete documentation and common pitfalls.**
 
 ## License
 
