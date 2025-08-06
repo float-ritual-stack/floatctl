@@ -38,4 +38,16 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Consciousness technology files with potential API keys
+*consciousness_contamination_analysis.json
+*consciousness_contamination*.json
+examples/*contamination*.json
+
+# API keys and sensitive data
+*.key
+*api_key*
+*secret*
+.anthropic
+.openai 
