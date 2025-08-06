@@ -4,27 +4,50 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
-## Quick Start
+## 🚀 Quick Start
+
+**New to FloatCtl?** Get up and running in 10 minutes:
 
 ```bash
-# Install dependencies
-uv sync
+# Install UV package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Run floatctl
+# Clone and setup
+git clone https://github.com/evanschultz/floatctl-py.git
+cd floatctl-py && uv sync
+
+# Your first command
 uv run floatctl --help
-
-# Process conversations
-floatctl conversations split input.json --output-dir ./processed
-
-# Bridge walking
-cd bridge_walkers && python run_bridge_walkers.py --single --persona archaeologist
 ```
 
-## Documentation
+**👉 [Complete Getting Started Guide](docs/GETTING_STARTED.md)** - Step-by-step tutorial with examples and success validation
 
-- **[Complete Documentation](docs/README.md)** - Full user guide and API reference
-- **[Development Guide](docs/development/AGENTS.md)** - Build commands, coding standards, plugin development
-- **[Plugin Development](docs/development/PLUGIN_DEVELOPMENT_GUIDE.md)** - Create new plugins
+## 🎯 What FloatCtl Does
+
+FloatCtl transforms your AI conversations from static exports into a **queryable, searchable knowledge base**:
+
+- **📁 Process Conversations**: Split Claude exports into organized, searchable files
+- **🔍 Semantic Search**: Find insights using natural language queries  
+- **🧠 Context Management**: Automatic capture and restoration of conversation context
+- **🔌 Extensible**: Plugin architecture for custom workflows
+- **🤖 MCP Integration**: Seamless Claude Desktop integration
+
+## 📚 Documentation
+
+### 🌱 New User Path
+1. **[Getting Started Guide](docs/GETTING_STARTED.md)** - 10-minute setup with validation steps
+2. **[Quick Reference](docs/QUICK_REFERENCE.md)** - Essential commands cheat sheet  
+3. **[Complete User Guide](docs/README.md)** - Full feature documentation
+
+### 🔧 Developer Path  
+1. **[Plugin Development Guide](docs/development/PLUGIN_DEVELOPMENT_GUIDE.md)** - Create custom plugins
+2. **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation with examples
+3. **[Development Guide](docs/development/AGENTS.md)** - Build commands, coding standards
+
+### 🆘 Support & Reference
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING_GUIDE.md)** - Common issues with step-by-step solutions
+- **[Documentation Index](docs/DOCUMENTATION_INDEX.md)** - Complete documentation map
+- **[Workflow Tutorials](docs/tutorials/WORKFLOW_TUTORIALS.md)** - Advanced workflow guides
 - **[Changelog](docs/CHANGELOG.md)** - Version history and recent changes
 
 ## Key Features
