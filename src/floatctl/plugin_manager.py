@@ -2,8 +2,9 @@
 
 import os
 import sys
+import functools
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Set, Type
+from typing import Dict, Any, List, Optional, Set, Type, Callable, Tuple
 from importlib import import_module
 from importlib.metadata import entry_points
 from dataclasses import dataclass, field
@@ -17,6 +18,64 @@ from floatctl.core.logging import get_logger, log_plugin_event
 from floatctl.core.middleware import middleware_manager, MiddlewareInterface
 
 console = Console()
+
+
+# Decorator functions for plugin command registration
+def command(name: Optional[str] = None, 
+           parent: Optional[str] = None,
+           help: Optional[str] = None,
+           **kwargs):
+    """Decorator to register a plugin command.
+    
+    Args:
+        name: Command name (defaults to function name)
+        parent: Parent group name (defaults to plugin root)
+        help: Help text (defaults to function docstring)
+        **kwargs: Additional Click command options
+    """
+    def decorator(func):
+        func._floatctl_command_info = {
+            'name': name or func.__name__,
+            'parent': parent,
+            'help': help or func.__doc__,
+            'kwargs': kwargs
+        }
+        return func
+    return decorator
+
+
+def group(name: Optional[str] = None,
+          help: Optional[str] = None,
+          **kwargs):
+    """Decorator to register a plugin command group.
+    
+    Args:
+        name: Group name (defaults to function name)
+        help: Help text (defaults to function docstring)
+        **kwargs: Additional Click group options
+    """
+    def decorator(func):
+        func._floatctl_group_info = {
+            'name': name or func.__name__,
+            'help': help or func.__doc__,
+            'kwargs': kwargs
+        }
+        return func
+    return decorator
+
+
+def option(*args, **kwargs):
+    """Decorator to add Click options to commands."""
+    def decorator(func):
+        return click.option(*args, **kwargs)(func)
+    return decorator
+
+
+def argument(*args, **kwargs):
+    """Decorator to add Click arguments to commands."""
+    def decorator(func):
+        return click.argument(*args, **kwargs)(func)
+    return decorator
 
 
 class PluginConfigBase(BaseModel):
@@ -78,6 +137,9 @@ class PluginBase:
         self._validated_config = None
         self._state = PluginState.DISCOVERED
         self._manager = None
+        self._command_registry = []
+        self._group_registry = []
+        self._discover_decorated_commands()
         if not os.environ.get('_FLOATCTL_COMPLETE'):
             self.logger = log_plugin_event(self.name, "initialized")
         else:
@@ -135,9 +197,71 @@ class PluginBase:
         """Subscribe to an event through the middleware system."""
         middleware_manager.subscribe_to_event(event_type, callback)
     
+    def _discover_decorated_commands(self):
+        """Discover all decorated commands and groups in the plugin."""
+        for name in dir(self):
+            if name.startswith('_'):
+                continue
+            method = getattr(self, name)
+            if hasattr(method, '_floatctl_command_info'):
+                self._command_registry.append((name, method, method._floatctl_command_info))
+            elif hasattr(method, '_floatctl_group_info'):
+                self._group_registry.append((name, method, method._floatctl_group_info))
+    
+    def _wrap_method(self, method):
+        """Wrap plugin method to handle self parameter."""
+        @functools.wraps(method)
+        def wrapper(*args, **kwargs):
+            # Method is already bound to self, just call it
+            return method(*args, **kwargs)
+        return wrapper
+    
     def register_commands(self, cli_group: click.Group) -> None:
-        """Register plugin commands with the CLI."""
-        raise NotImplementedError("Plugins must implement register_commands")
+        """Register plugin commands with the CLI.
+        
+        This method now supports both the new decorator-based approach
+        and the legacy nested approach for backward compatibility.
+        """
+        # If plugin has decorated commands, use the new system
+        if self._command_registry or self._group_registry:
+            self._register_decorated_commands(cli_group)
+        else:
+            # Fall back to legacy implementation
+            self._register_legacy_commands(cli_group)
+    
+    def _register_decorated_commands(self, cli_group: click.Group) -> None:
+        """Register commands using the new decorator system."""
+        # Create groups first
+        created_groups = {}
+        for name, method, group_info in self._group_registry:
+            group_name = group_info.get('name', name)
+            click_group = cli_group.group(
+                name=group_name,
+                help=group_info.get('help', method.__doc__),
+                **group_info.get('kwargs', {})
+            )(self._wrap_method(method))
+            created_groups[group_name] = click_group
+        
+        # Register commands
+        for name, method, command_info in self._command_registry:
+            parent = command_info.get('parent')
+            if parent and parent in created_groups:
+                target_group = created_groups[parent]
+            else:
+                target_group = cli_group
+            
+            command_name = command_info.get('name', name)
+            target_group.command(
+                name=command_name,
+                help=command_info.get('help', method.__doc__),
+                **command_info.get('kwargs', {})
+            )(self._wrap_method(method))
+    
+    def _register_legacy_commands(self, cli_group: click.Group) -> None:
+        """Fallback for plugins using the old nested approach."""
+        # Call the original register_commands implementation
+        # This allows plugins to override this method with their legacy implementation
+        raise NotImplementedError("Plugins must implement register_commands or use decorators")
     
     def validate_config(self) -> bool:
         """Validate plugin configuration using Pydantic model."""

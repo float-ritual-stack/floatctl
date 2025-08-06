@@ -7,7 +7,7 @@ import shutil
 
 import click
 
-from floatctl.plugin_manager import PluginBase
+from floatctl.plugin_manager import PluginBase, group, command, option
 from floatctl.core.logging import get_logger
 
 
@@ -18,29 +18,26 @@ class MCPServerPlugin(PluginBase):
     description = "MCP server installation and management commands"
     version = "0.1.0"
     
-    def register_commands(self, cli_group: click.Group) -> None:
-        """Register MCP server commands."""
-        
-        @cli_group.group()
-        @click.pass_context
-        def mcp(ctx: click.Context) -> None:
-            """MCP server for context concierge functionality."""
-            pass
-        
-        @mcp.command()
-        @click.option(
-            '--transport',
-            type=click.Choice(['stdio', 'sse', 'streamable-http']),
-            default='stdio',
-            help='Transport mode for MCP server'
-        )
-        @click.option(
-            '--port',
-            type=int,
-            default=3000,
-            help='Port for HTTP transport'
-        )
-        def serve(transport: str, port: int) -> None:
+    @group()
+    @click.pass_context
+    def mcp(self, ctx: click.Context) -> None:
+        """MCP server for context concierge functionality."""
+        pass
+    
+    @command(parent="mcp")
+    @option(
+        '--transport',
+        type=click.Choice(['stdio', 'sse', 'streamable-http']),
+        default='stdio',
+        help='Transport mode for MCP server'
+    )
+    @option(
+        '--port',
+        type=int,
+        default=3000,
+        help='Port for HTTP transport'
+    )
+    def serve(self, transport: str, port: int) -> None:
             """Run the Evna Context Concierge MCP server.
             
             This server provides context management tools for active_context_stream,

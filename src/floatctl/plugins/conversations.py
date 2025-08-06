@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.table import Table
 
-from floatctl.plugin_manager import PluginBase
+from floatctl.plugin_manager import PluginBase, group, command, option, argument
 from floatctl.core.database import DatabaseManager, ProcessingStatus
 from floatctl.core.logging import log_command, log_file_operation
 from floatctl.core.consciousness_middleware import ConsciousnessMiddleware
@@ -29,331 +29,166 @@ class ConversationsPlugin(PluginBase):
     description = "Split and process conversation exports from various AI systems"
     version = "1.0.0"
     
-    def register_commands(self, cli_group: click.Group) -> None:
-        """Register conversation commands."""
+    @group()
+    @click.pass_context
+    def conversations(self, ctx: click.Context) -> None:
+        """Manage conversation exports."""
+        pass
+    
+    @command(parent="conversations")
+    @argument("input_file", type=click.Path(exists=True, path_type=Path))
+    @option(
+        "--output-dir", "-o",
+        type=click.Path(path_type=Path),
+        help="Output directory for split conversations",
+    )
+    @option(
+        "--format", "-f",
+        type=click.Choice(["json", "markdown", "both"]),
+        default="json",
+        help="Output format",
+    )
+    @option(
+        "--by-date",
+        is_flag=True,
+        help="Organize output files by date",
+    )
+    @option(
+        "--filter-after",
+        type=click.DateTime(),
+        help="Only process conversations created after this date",
+    )
+    @option(
+        "--dry-run",
+        is_flag=True,
+        help="Show what would be processed without actually doing it",
+    )
+    @option(
+        "--consciousness-analysis",
+        is_flag=True,
+        default=True,
+        help="Enable consciousness contamination analysis (default: enabled)",
+    )
+    @option(
+        "--export-consciousness",
+        type=click.Path(path_type=Path),
+        help="Export consciousness analysis results to JSON file",
+    )
+    @option(
+        "--sync-to-chroma",
+        is_flag=True,
+        help="Sync consciousness analysis results to Chroma for semantic search",
+    )
+    @click.pass_context
+    def split(
+        self,
+        ctx: click.Context,
+        input_file: Path,
+        output_dir: Optional[Path],
+        format: str,
+        by_date: bool,
+        filter_after: Optional[datetime],
+        dry_run: bool,
+        consciousness_analysis: bool,
+        export_consciousness: Optional[Path],
+        sync_to_chroma: bool,
+    ) -> None:
+        """Split a conversations export file into individual conversation files."""
+        config = ctx.obj["config"]
+        db_manager = DatabaseManager(config.db_path)
         
-        @cli_group.group()
-        @click.pass_context
-        def conversations(ctx: click.Context) -> None:
-            """Manage conversation exports."""
-            pass
+        # Set up output directory
+        if output_dir is None:
+            output_dir = Path.cwd() / "output" / "conversations"
+        output_dir.mkdir(parents=True, exist_ok=True)
         
-        @conversations.command()
-        @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-        @click.option(
-            "--output-dir", "-o",
-            type=click.Path(path_type=Path),
-            help="Output directory for split conversations",
+        # Record the file run
+        file_run = db_manager.record_file_run(
+            file_path=input_file,
+            plugin=self.name,
+            command="split",
+            metadata={
+                "format": format,
+                "by_date": by_date,
+                "filter_after": filter_after.isoformat() if filter_after else None,
+                "dry_run": dry_run,
+                "consciousness_analysis": consciousness_analysis,
+            }
         )
-        @click.option(
-            "--format", "-f",
-            type=click.Choice(["json", "markdown", "both"]),
-            default="json",
-            help="Output format",
-        )
-        @click.option(
-            "--by-date",
-            is_flag=True,
-            help="Organize output files by date",
-        )
-        @click.option(
-            "--filter-after",
-            type=click.DateTime(),
-            help="Only process conversations created after this date",
-        )
-        @click.option(
-            "--dry-run",
-            is_flag=True,
-            help="Show what would be processed without actually doing it",
-        )
-        @click.option(
-            "--consciousness-analysis",
-            is_flag=True,
-            default=True,
-            help="Enable consciousness contamination analysis (default: enabled)",
-        )
-        @click.option(
-            "--export-consciousness",
-            type=click.Path(path_type=Path),
-            help="Export consciousness analysis results to JSON file",
-        )
-        @click.option(
-            "--sync-to-chroma",
-            is_flag=True,
-            help="Sync consciousness analysis results to Chroma for semantic search",
-        )
-        @click.pass_context
-        def split(
-            ctx: click.Context,
-            input_file: Path,
-            output_dir: Optional[Path],
-            format: str,
-            by_date: bool,
-            filter_after: Optional[datetime],
-            dry_run: bool,
-            consciousness_analysis: bool,
-            export_consciousness: Optional[Path],
-            sync_to_chroma: bool,
-        ) -> None:
-            """Split a conversations export file into individual conversation files."""
-            config = ctx.obj["config"]
-            db_manager = DatabaseManager(config.db_path)
-            
-            # Initialize consciousness middleware if enabled
-            consciousness_middleware = None
-            chroma_bridge = None
-            workflow_intelligence = None
-            if consciousness_analysis:
-                consciousness_middleware = ConsciousnessMiddleware(db_manager)
-                workflow_intelligence = WorkflowIntelligence(db_manager)
-                console.print("[cyan]🧬 Consciousness analysis enabled[/cyan]")
-                console.print("[cyan]📋 Workflow intelligence enabled[/cyan]")
-                
-                if sync_to_chroma:
-                    chroma_bridge = ConsciousnessChromaBridge(db_manager)
-                    console.print("[cyan]🔗 Chroma sync enabled[/cyan]")
-            
-            # Set default output directory
-            if output_dir is None:
-                output_dir = config.output_dir / "conversations"
-            
-            # Create logger for this command
-            cmd_logger = log_command(
-                "conversations.split",
-                {
-                    "input_file": str(input_file),
-                    "output_dir": str(output_dir),
-                    "format": format,
-                    "by_date": by_date,
-                    "filter_after": filter_after.isoformat() if filter_after else None,
-                    "dry_run": dry_run,
-                },
-                plugin=self.name,
+        
+        try:
+            result = self._split_conversations(
+                input_file=input_file,
+                output_dir=output_dir,
+                format=format,
+                by_date=by_date,
+                filter_after=filter_after,
+                dry_run=dry_run,
+                consciousness_analysis=consciousness_analysis,
+                export_consciousness=export_consciousness,
+                sync_to_chroma=sync_to_chroma,
+                config=config,
+                db_manager=db_manager,
             )
             
-            cmd_logger.info("starting_conversation_split")
+            # Complete the file run
+            db_manager.complete_file_run(
+                file_run.id,
+                output_path=output_dir,
+                items_processed=result.get("conversations_processed", 0),
+                metadata=result
+            )
             
-            # Calculate file hash for change detection
-            file_hash = self._calculate_file_hash(input_file)
-            
-            # Record the run (unless dry run)
-            file_run = None
+            console.print(f"[green]✓[/green] Processing completed successfully")
             if not dry_run:
-                file_run = db_manager.record_file_run(
-                    input_file,
-                    plugin=self.name,
-                    command="split",
-                    file_hash=file_hash,
-                    metadata={
-                        "format": format,
-                        "by_date": by_date,
-                        "filter_after": filter_after.isoformat() if filter_after else None,
-                    },
-                )
-            
-            try:
-                # Load conversations
-                file_logger = log_file_operation("read", input_file)
-                file_logger.info("loading_conversations")
+                console.print(f"[blue]Output directory:[/blue] {output_dir}")
                 
-                with open(input_file, 'r') as f:
-                    conversations = json.load(f)
-                
-                if not isinstance(conversations, list):
-                    raise ValueError("Expected array of conversations")
-                
-                console.print(f"[green]Found {len(conversations)} conversations[/green]")
-                
-                # Filter conversations if needed
-                if filter_after:
-                    original_count = len(conversations)
-                    conversations = self._filter_conversations(conversations, filter_after)
-                    filtered_count = original_count - len(conversations)
-                    if filtered_count > 0:
-                        console.print(f"[yellow]Filtered out {filtered_count} conversations before {filter_after}[/yellow]")
-                
-                if dry_run:
-                    # Show what would be processed
-                    self._show_dry_run_summary(conversations, output_dir, format, by_date)
-                    return
-                
-                # Create output directory
-                output_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Process conversations with progress bar
-                processed = 0
-                errors = 0
-                consciousness_analyses = []
-                
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("Processing conversations...", total=len(conversations))
-                    
-                    for conv in conversations:
-                        try:
-                            artifact_path = self._process_conversation(
-                                conv, output_dir, format, by_date
-                            )
-                            
-                            # Run consciousness analysis if enabled
-                            if consciousness_middleware and artifact_path:
-                                try:
-                                    # Read the generated file content for analysis
-                                    if artifact_path.suffix == '.md':
-                                        with open(artifact_path, 'r', encoding='utf-8') as f:
-                                            content = f.read()
-                                        
-                                        # Analyze consciousness patterns
-                                        analysis = consciousness_middleware.analyze_conversation(
-                                            artifact_path, conv, content
-                                        )
-                                        
-                                        # Save analysis to database
-                                        consciousness_middleware.save_analysis(analysis)
-                                        consciousness_analyses.append(analysis)
-                                        
-                                        # Extract workflow intelligence
-                                        if workflow_intelligence:
-                                            workflow_intelligence.extract_workflow_intelligence(conv, content)
-                                        
-                                        # Sync to Chroma if enabled
-                                        if chroma_bridge:
-                                            chroma_bridge.sync_analysis_to_chroma(analysis)
-                                        
-                                        # Show alerts in console (optional - can be disabled)
-                                        for alert in analysis.alerts[:2]:  # Show max 2 alerts per conversation
-                                            console.print(f"  [yellow]{alert}[/yellow]")
-                                        
-                                except Exception as e:
-                                    console.print(f"  [red]Consciousness analysis failed: {e}[/red]")
-                            
-                            # Record artifact in database
-                            if file_run:
-                                db_manager.add_artifact(
-                                    file_run.id,
-                                    artifact_type="conversation",
-                                    artifact_path=artifact_path,
-                                    artifact_id=conv.get("uuid"),
-                                    artifact_name=conv.get("name"),
-                                    created_at=self._parse_datetime(conv.get("created_at")),
-                                    metadata={
-                                        "format": format,
-                                        "message_count": len(conv.get("chat_messages", [])),
-                                    },
-                                )
-                            
-                            processed += 1
-                            
-                        except Exception as e:
-                            errors += 1
-                            console.print(f"[red]Error processing conversation: {e}[/red]")
-                            cmd_logger.error(
-                                "conversation_processing_error",
-                                error=str(e),
-                                conversation_id=conv.get("uuid", "unknown"),
-                            )
-                        
-                        progress.update(task, advance=1)
-                
-                # Complete the run
-                if file_run:
-                    db_manager.complete_file_run(
-                        file_run.id,
-                        status=ProcessingStatus.COMPLETED if errors == 0 else ProcessingStatus.COMPLETED,
-                        output_path=output_dir,
-                        items_processed=processed,
-                        metadata={
-                            "errors": errors,
-                            "total_conversations": len(conversations),
-                        },
-                    )
-                
-                # Show summary
-                console.print(f"\n[green]✓ Successfully processed {processed} conversations[/green]")
-                if errors > 0:
-                    console.print(f"[yellow]⚠ {errors} conversations had errors[/yellow]")
-                
-                # Show consciousness analysis summary
-                if consciousness_middleware and consciousness_analyses:
-                    summary = consciousness_middleware.get_analysis_summary()
-                    console.print(f"\n[cyan]🧬 Consciousness Analysis Summary:[/cyan]")
-                    console.print(f"  • Total analyses: {summary['total_analyses']}")
-                    console.print(f"  • High contamination: {summary['high_contamination']}")
-                    console.print(f"  • Moderate contamination: {summary['moderate_contamination']}")
-                    console.print(f"  • Conversations with consciousness URLs: {summary['conversations_with_consciousness_urls']}")
-                    console.print(f"  • Strong dispatch opportunities: {summary['strong_dispatch_opportunities']}")
-                    console.print(f"  • Average contamination score: {summary['avg_contamination_score']}")
-                    console.print(f"  • Average dispatch score: {summary['avg_dispatch_score']}")
-                
-                # Export consciousness analysis if requested
-                if export_consciousness and consciousness_middleware:
-                    consciousness_middleware.export_analysis_results(export_consciousness)
-                    console.print(f"\n[green]📊 Consciousness analysis exported to: {export_consciousness}[/green]")
-                
-                cmd_logger.info(
-                    "conversation_split_completed",
-                    processed=processed,
-                    errors=errors,
-                    total=len(conversations),
-                )
-                
-            except Exception as e:
-                cmd_logger.error("conversation_split_failed", error=str(e), exc_info=True)
-                
-                if file_run:
-                    db_manager.complete_file_run(
-                        file_run.id,
-                        status=ProcessingStatus.FAILED,
-                        error_message=str(e),
-                    )
-                
-                console.print(f"[red]Error: {e}[/red]")
-                raise click.ClickException(str(e))
+        except Exception as e:
+            # Mark the file run as failed
+            db_manager.fail_file_run(file_run.id, str(e))
+            console.print(f"[red]✗ Error processing conversations: {e}[/red]")
+            raise click.ClickException(str(e))
+    
+    @command(parent="conversations")
+    @argument("input_file", type=click.Path(exists=True, path_type=Path))
+    @click.pass_context
+    def history(self, ctx: click.Context, input_file: Path) -> None:
+        """Show processing history for a file."""
+        config = ctx.obj["config"]
+        db_manager = DatabaseManager(config.db_path)
         
-        @conversations.command()
-        @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
-        @click.pass_context
-        def history(ctx: click.Context, file_path: Path) -> None:
-            """Show processing history for a conversations file."""
-            config = ctx.obj["config"]
-            db_manager = DatabaseManager(config.db_path)
+        file_hash = hashlib.md5(input_file.read_bytes()).hexdigest()
+        runs = db_manager.get_file_history(input_file)
+        
+        if not runs:
+            console.print(f"[yellow]No processing history found for {input_file}[/yellow]")
+            return
+        
+        table = Table(title=f"Processing History: {input_file.name}")
+        table.add_column("Run ID", style="cyan")
+        table.add_column("Plugin", style="green")
+        table.add_column("Command", style="blue")
+        table.add_column("Status", style="magenta")
+        table.add_column("Started", style="yellow")
+        table.add_column("Duration", style="white")
+        
+        for run in runs:
+            duration = "N/A"
+            if run.completed_at:
+                duration = str(run.completed_at - run.started_at)
+            elif run.failed_at:
+                duration = str(run.failed_at - run.started_at)
             
-            history = db_manager.get_file_history(file_path)
-            
-            if not history:
-                console.print(f"[yellow]No processing history found for {file_path}[/yellow]")
-                return
-            
-            # Create table
-            table = Table(title=f"Processing History: {file_path.name}")
-            table.add_column("Date", style="cyan")
-            table.add_column("Status", style="green")
-            table.add_column("Items", justify="right")
-            table.add_column("Duration", justify="right")
-            table.add_column("Output")
-            
-            for run in history:
-                status_style = {
-                    ProcessingStatus.COMPLETED: "green",
-                    ProcessingStatus.FAILED: "red",
-                    ProcessingStatus.PROCESSING: "yellow",
-                    ProcessingStatus.NEEDS_REPROCESS: "magenta",
-                }.get(run.status, "white")
-                
-                table.add_row(
-                    run.started_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    f"[{status_style}]{run.status.value}[/{status_style}]",
-                    str(run.items_processed or "-"),
-                    f"{run.duration_seconds}s" if run.duration_seconds else "-",
-                    str(Path(run.output_path).name) if run.output_path else "-",
-                )
-            
-            console.print(table)
+            table.add_row(
+                str(run.id),
+                run.plugin,
+                run.command,
+                run.status.value,
+                run.started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                duration
+            )
+        
+        console.print(table)
         
         @conversations.command()
         @click.argument("conversations_dir", type=click.Path(exists=True, path_type=Path))
