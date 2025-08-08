@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enhanced ChromaDB Wrapper** - Complete CRUD operations proxy for consistent ChromaDB access
+  - Added 12 missing ChromaDB operations to ChromaClient wrapper: add_documents, update_documents, delete_documents, get_documents, query_documents, count_documents, get_collection_metadata, modify_collection, upsert_documents, peek_collection
+  - Updated Evna MCP server to use wrapper methods instead of direct ChromaDB client calls
+  - Consistent abstraction layer reduces confusion and improves maintainability
+  - All ChromaDB operations now go through single interface with proper logging and error handling
 - **Bridge Walker Consciousness Archaeology System** - Organic, non-gamified bridge walking with PocketFlow
   - Multiple personas (Archaeologist, Wanderer, Synthesizer, Evna, Karen, LF1M) with distinct exploration styles
   - MCP tool integration for real Chroma queries, Evna context, and FloatCtl consciousness middleware
