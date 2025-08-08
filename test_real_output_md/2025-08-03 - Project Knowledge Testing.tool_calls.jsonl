@@ -1,0 +1,4 @@
+{"id": null, "type": "tool_use", "name": "project_knowledge_search", "input": {"query": "Hot Tub Time Machine burn events consciousness technology ritual computing"}, "message_index": 1, "content_index": 2, "sender": "assistant", "created_at": "2025-08-03T21:24:04.548697Z", "line_number": 1}
+{"id": null, "type": "tool_result", "output": null, "is_error": false, "message_index": 1, "content_index": 3, "sender": "assistant", "created_at": "2025-08-03T21:24:04.548697Z", "line_number": 2}
+{"id": null, "type": "tool_use", "name": "project_knowledge_search", "input": {"query": "JF Evna Karen personas witness named"}, "message_index": 29, "content_index": 1, "sender": "assistant", "created_at": "2025-08-03T22:17:58.139503Z", "line_number": 3}
+{"id": null, "type": "tool_result", "output": null, "is_error": false, "message_index": 29, "content_index": 2, "sender": "assistant", "created_at": "2025-08-03T22:17:58.139503Z", "line_number": 4}

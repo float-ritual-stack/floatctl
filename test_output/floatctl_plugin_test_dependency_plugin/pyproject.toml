@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "floatctl-plugin-test_dependency_plugin"
+version = "0.1.0"
+description = "A FloatCtl plugin for test_dependency_plugin"
+authors = [
+    {name = "FloatCtl Developer", email = "developer@example.com"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "floatctl",
+    "rich-click>=1.6.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.entry-points."floatctl.plugins"]
+test-dependency-plugin = "floatctl_plugin_test_dependency_plugin.test_dependency_plugin_plugin:TestDependencyPluginPlugin"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/floatctl-plugin-test_dependency_plugin"
+Repository = "https://github.com/yourusername/floatctl-plugin-test_dependency_plugin"
+Issues = "https://github.com/yourusername/floatctl-plugin-test_dependency_plugin/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/floatctl_plugin_test_dependency_plugin"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+select = ["E", "F", "W", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "EM", "EXE", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "NPY", "RUF"]
+ignore = ["S101", "S603", "S607"]
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "PLR0913"]

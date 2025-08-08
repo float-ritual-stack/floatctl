@@ -61,6 +61,7 @@ floatctl = "floatctl.cli:main"
 
 [project.entry-points."floatctl.plugins"]
 conversations = "floatctl.plugins.conversations:ConversationsPlugin"
+consciousness = "floatctl.plugins.consciousness_query:ConsciousnessQueryPlugin"
 artifacts = "floatctl.plugins.artifacts:ArtifactsPlugin"
 export = "floatctl.plugins.export:ExportPlugin"
 chroma = "floatctl.plugins.chroma:ChromaPlugin"
@@ -69,6 +70,7 @@ repl = "floatctl.plugins.interactive_repl:InteractiveREPLPlugin"
 textual = "floatctl.plugins.textual_float:TextualFloatPlugin"
 float-simple = "floatctl.plugins.textual_float_simple:SimpleTextualFloatPlugin"
 mcp = "floatctl.plugins.mcp_server:MCPServerPlugin"
+dev-tools = "floatctl.plugins.dev_tools:DevToolsPlugin"
 
 [dependency-groups]
 dev = [

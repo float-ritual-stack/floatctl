@@ -1,0 +1,2 @@
+{"id": "toolu_01ABC", "type": "tool_use", "name": "read_file", "input": {"path": "/example/file.txt"}, "message_index": 3, "content_index": 1, "sender": "assistant", "created_at": null, "line_number": 1}
+{"id": "toolu_01ABC", "type": "tool_result", "output": null, "is_error": false, "message_index": 3, "content_index": 2, "sender": "assistant", "created_at": null, "line_number": 2}

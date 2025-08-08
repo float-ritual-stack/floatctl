@@ -31,6 +31,7 @@ if os.environ.get('_FLOATCTL_COMPLETE'):
     )
 
 # Now safe to import everything else
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -42,7 +43,7 @@ from rich.panel import Panel
 from floatctl import __version__
 from floatctl.core.config import Config, load_config
 from floatctl.core.logging import setup_logging, setup_quiet_logging
-from floatctl.plugin_manager import PluginManager
+from floatctl.plugin_manager import PluginManager, PluginState
 
 # Configure rich-click for beautiful output
 click.rich_click.USE_RICH_MARKUP = True
@@ -217,13 +218,32 @@ def create_cli_app() -> click.Group:
         console.print("\n[bold]Available Plugins:[/bold]\n")
         
         for plugin_name, plugin_info in pm.plugins.items():
-            plugin_instance = plugin_info["instance"]
-            console.print(f"[blue]•[/blue] [bold]{plugin_name}[/bold]")
-            if hasattr(plugin_instance, "description"):
-                console.print(f"  [dim]{plugin_instance.description}[/dim]")
-            if hasattr(plugin_instance, "version"):
-                console.print(f"  [dim]Version: {plugin_instance.version}[/dim]")
-            console.print(f"  [dim]Entry point: {plugin_info['entry_point']}[/dim]")
+            # Color code by state
+            state_colors = {
+                "active": "green",
+                "loaded": "yellow", 
+                "initialized": "blue",
+                "error": "red",
+                "discovered": "dim",
+            }
+            state_color = state_colors.get(plugin_info.state.value, "white")
+            
+            console.print(f"[blue]•[/blue] [bold]{plugin_name}[/bold] [{state_color}]({plugin_info.state.value})[/{state_color}]")
+            
+            if plugin_info.instance:
+                if hasattr(plugin_info.instance, "description"):
+                    console.print(f"  [dim]{plugin_info.instance.description}[/dim]")
+                if hasattr(plugin_info.instance, "version"):
+                    console.print(f"  [dim]Version: {plugin_info.instance.version}[/dim]")
+            
+            console.print(f"  [dim]Entry point: {plugin_info.entry_point}[/dim]")
+            
+            if plugin_info.dependencies:
+                console.print(f"  [dim]Dependencies: {', '.join(plugin_info.dependencies)}[/dim]")
+            
+            if plugin_info.error:
+                console.print(f"  [red]Error: {plugin_info.error}[/red]")
+            
             console.print()
     
     @plugin.command("info")
@@ -241,20 +261,235 @@ def create_cli_app() -> click.Group:
             sys.exit(1)
         
         plugin_info = pm.plugins[plugin_name]
-        instance = plugin_info["instance"]
+        instance = plugin_info.instance
+        
+        info_text = (
+            f"[bold]Name:[/bold] {plugin_name}\n"
+            f"[bold]State:[/bold] {plugin_info.state.value}\n"
+            f"[bold]Entry Point:[/bold] {plugin_info.entry_point}\n"
+            f"[bold]Priority:[/bold] {plugin_info.priority}\n"
+        )
+        
+        if plugin_info.dependencies:
+            info_text += f"[bold]Dependencies:[/bold] {', '.join(plugin_info.dependencies)}\n"
+        
+        if plugin_info.dependents:
+            info_text += f"[bold]Dependents:[/bold] {', '.join(plugin_info.dependents)}\n"
+        
+        if instance:
+            info_text += (
+                f"[bold]Class:[/bold] {instance.__class__.__name__}\n"
+                f"[bold]Module:[/bold] {instance.__class__.__module__}\n"
+            )
+            if hasattr(instance, "description"):
+                info_text += f"[bold]Description:[/bold] {instance.description}\n"
+            if hasattr(instance, "version"):
+                info_text += f"[bold]Version:[/bold] {instance.version}\n"
+        
+        if plugin_info.error:
+            info_text += f"[bold red]Error:[/bold red] {plugin_info.error}\n"
         
         console.print(
             Panel(
-                f"[bold]Name:[/bold] {plugin_name}\n"
-                f"[bold]Entry Point:[/bold] {plugin_info['entry_point']}\n"
-                f"[bold]Class:[/bold] {instance.__class__.__name__}\n"
-                f"[bold]Module:[/bold] {instance.__class__.__module__}\n"
-                + (f"[bold]Description:[/bold] {instance.description}\n" if hasattr(instance, "description") else "")
-                + (f"[bold]Version:[/bold] {instance.version}\n" if hasattr(instance, "version") else ""),
+                info_text.rstrip(),
                 title=f"Plugin: {plugin_name}",
                 border_style="blue",
             )
         )
+    
+    @plugin.command("reload")
+    @click.argument("plugin_name")
+    @click.pass_context
+    def plugin_reload(ctx: click.Context, plugin_name: str) -> None:
+        """Reload a specific plugin."""
+        pm = ctx.obj.get("plugin_manager")
+        if not pm:
+            console.print("[red]Plugin manager not initialized[/red]")
+            return
+        
+        if plugin_name not in pm.plugins:
+            console.print(f"[red]Plugin '{plugin_name}' not found[/red]")
+            sys.exit(1)
+        
+        console.print(f"🔄 Reloading plugin '{plugin_name}'...")
+        
+        import asyncio
+        try:
+            success = asyncio.run(pm.reload_plugin(plugin_name))
+            if success:
+                console.print(f"[green]✅ Plugin '{plugin_name}' reloaded successfully[/green]")
+            else:
+                console.print(f"[red]❌ Failed to reload plugin '{plugin_name}'[/red]")
+        except Exception as e:
+            console.print(f"[red]❌ Error reloading plugin '{plugin_name}': {e}[/red]")
+    
+    @plugin.command("unload")
+    @click.argument("plugin_name")
+    @click.pass_context
+    def plugin_unload(ctx: click.Context, plugin_name: str) -> None:
+        """Unload a specific plugin."""
+        pm = ctx.obj.get("plugin_manager")
+        if not pm:
+            console.print("[red]Plugin manager not initialized[/red]")
+            return
+        
+        if plugin_name not in pm.plugins:
+            console.print(f"[red]Plugin '{plugin_name}' not found[/red]")
+            sys.exit(1)
+        
+        console.print(f"🔄 Unloading plugin '{plugin_name}'...")
+        
+        import asyncio
+        try:
+            success = asyncio.run(pm.unload_plugin(plugin_name))
+            if success:
+                console.print(f"[green]✅ Plugin '{plugin_name}' unloaded successfully[/green]")
+            else:
+                console.print(f"[red]❌ Failed to unload plugin '{plugin_name}'[/red]")
+        except Exception as e:
+            console.print(f"[red]❌ Error unloading plugin '{plugin_name}': {e}[/red]")
+    
+    @plugin.command("dependencies")
+    @click.argument("plugin_name")
+    @click.pass_context
+    def plugin_dependencies(ctx: click.Context, plugin_name: str) -> None:
+        """Show plugin dependency tree."""
+        pm = ctx.obj.get("plugin_manager")
+        if not pm:
+            console.print("[red]Plugin manager not initialized[/red]")
+            return
+        
+        if plugin_name not in pm.plugins:
+            console.print(f"[red]Plugin '{plugin_name}' not found[/red]")
+            sys.exit(1)
+        
+        plugin_info = pm.plugins[plugin_name]
+        
+        console.print(f"\n[bold]Dependency Tree for '{plugin_name}':[/bold]\n")
+        
+        # Show dependencies
+        if plugin_info.dependencies:
+            console.print("[blue]📦 Dependencies:[/blue]")
+            for dep in plugin_info.dependencies:
+                dep_info = pm.plugins.get(dep)
+                if dep_info:
+                    state_color = "green" if dep_info.state.value == "active" else "red"
+                    console.print(f"  └─ {dep} [{state_color}]({dep_info.state.value})[/{state_color}]")
+                else:
+                    console.print(f"  └─ {dep} [red](missing)[/red]")
+        else:
+            console.print("[dim]📦 No dependencies[/dim]")
+        
+        # Show dependents
+        if plugin_info.dependents:
+            console.print("\n[blue]🔗 Dependents:[/blue]")
+            for dep in plugin_info.dependents:
+                dep_info = pm.plugins.get(dep)
+                if dep_info:
+                    state_color = "green" if dep_info.state.value == "active" else "red"
+                    console.print(f"  └─ {dep} [{state_color}]({dep_info.state.value})[/{state_color}]")
+                else:
+                    console.print(f"  └─ {dep} [red](missing)[/red]")
+        else:
+            console.print("\n[dim]🔗 No dependents[/dim]")
+        
+        # Show load order
+        load_order = pm.get_load_order()
+        if plugin_name in load_order:
+            position = load_order.index(plugin_name) + 1
+            console.print(f"\n[blue]📋 Load Order:[/blue] {position}/{len(load_order)}")
+            console.print(f"[dim]Full order: {' → '.join(load_order)}[/dim]")
+    
+    @plugin.command("config")
+    @click.argument("plugin_name")
+    @click.option("--schema", is_flag=True, help="Show configuration schema")
+    @click.pass_context
+    def plugin_config(ctx: click.Context, plugin_name: str, schema: bool) -> None:
+        """Show plugin configuration."""
+        pm = ctx.obj.get("plugin_manager")
+        if not pm:
+            console.print("[red]Plugin manager not initialized[/red]")
+            return
+        
+        if plugin_name not in pm.plugins:
+            console.print(f"[red]Plugin '{plugin_name}' not found[/red]")
+            sys.exit(1)
+        
+        plugin_info = pm.plugins[plugin_name]
+        if not plugin_info.instance:
+            console.print(f"[red]Plugin '{plugin_name}' is not loaded[/red]")
+            return
+        
+        if schema:
+            # Show configuration schema
+            try:
+                schema_data = plugin_info.instance.get_config_schema()
+                console.print(
+                    Panel(
+                        f"```json\n{json.dumps(schema_data, indent=2)}\n```",
+                        title=f"Configuration Schema: {plugin_name}",
+                        border_style="blue",
+                    )
+                )
+            except Exception as e:
+                console.print(f"[red]Error getting schema: {e}[/red]")
+        else:
+            # Show current configuration
+            try:
+                config_data = plugin_info.instance.config.dict()
+                console.print(
+                    Panel(
+                        f"```json\n{json.dumps(config_data, indent=2)}\n```",
+                        title=f"Current Configuration: {plugin_name}",
+                        border_style="green",
+                    )
+                )
+            except Exception as e:
+                console.print(f"[red]Error getting configuration: {e}[/red]")
+    
+    @plugin.command("validate")
+    @click.argument("plugin_name", required=False)
+    @click.pass_context
+    def plugin_validate(ctx: click.Context, plugin_name: Optional[str]) -> None:
+        """Validate plugin configurations."""
+        pm = ctx.obj.get("plugin_manager")
+        if not pm:
+            console.print("[red]Plugin manager not initialized[/red]")
+            return
+        
+        plugins_to_validate = [plugin_name] if plugin_name else list(pm.plugins.keys())
+        
+        console.print(f"\n[bold]Validating {len(plugins_to_validate)} plugin(s)...[/bold]\n")
+        
+        validation_results = []
+        for name in plugins_to_validate:
+            if name not in pm.plugins:
+                console.print(f"[red]❌ Plugin '{name}' not found[/red]")
+                continue
+            
+            plugin_info = pm.plugins[name]
+            if not plugin_info.instance:
+                console.print(f"[yellow]⚠️  Plugin '{name}' is not loaded[/yellow]")
+                validation_results.append((name, "not_loaded"))
+                continue
+            
+            try:
+                is_valid = plugin_info.instance.validate_config()
+                if is_valid:
+                    console.print(f"[green]✅ Plugin '{name}' configuration is valid[/green]")
+                    validation_results.append((name, "valid"))
+                else:
+                    console.print(f"[red]❌ Plugin '{name}' configuration is invalid[/red]")
+                    validation_results.append((name, "invalid"))
+            except Exception as e:
+                console.print(f"[red]❌ Plugin '{name}' validation error: {e}[/red]")
+                validation_results.append((name, "error"))
+        
+        # Summary
+        valid_count = sum(1 for _, status in validation_results if status == "valid")
+        total_count = len(validation_results)
+        
+        console.print(f"\n[bold]Summary:[/bold] {valid_count}/{total_count} plugins have valid configurations")
     
     # Add completion command
     @cli.command()
@@ -336,15 +571,15 @@ def create_cli_app() -> click.Group:
     return cli
 
 
-def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
+async def load_and_register_plugins_async(cli_app: click.Group) -> PluginManager:
     """Load plugins and register their commands with the CLI."""
     
     # Initialize plugin manager
     plugin_manager = PluginManager()
     
     try:
-        # Load all plugins
-        plugin_manager.load_plugins()
+        # Load all plugins with async lifecycle management
+        await plugin_manager.load_plugins()
         
         # Register plugin commands with CLI
         plugin_manager.register_cli_commands(cli_app)
@@ -352,7 +587,7 @@ def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
         if not os.environ.get('_FLOATCTL_COMPLETE'):
             structlog.get_logger().info(
                 "plugins_loaded_successfully",
-                count=len(plugin_manager.plugins)
+                count=len([p for p in plugin_manager.plugins.values() if p.state.value == "active"])
             )
         
     except Exception as e:
@@ -361,6 +596,55 @@ def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
         # Don't exit - let CLI work without plugins
     
     return plugin_manager
+
+
+def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
+    """Synchronous wrapper for async plugin loading."""
+    import asyncio
+    
+    try:
+        # Try to get existing event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're already in an async context, we need to handle this differently
+            # For now, fall back to synchronous loading
+            plugin_manager = PluginManager()
+            plugin_manager._discover_entry_point_plugins()
+            
+            # Load plugins synchronously (basic loading without full lifecycle)
+            for name, info in plugin_manager.plugins.items():
+                if info.state.value == "discovered":
+                    try:
+                        # Basic synchronous loading
+                        if info.loaded_from == "entry_point":
+                            if sys.version_info >= (3, 10):
+                                from importlib.metadata import entry_points
+                                discovered = entry_points(group="floatctl.plugins")
+                            else:
+                                from importlib.metadata import entry_points
+                                discovered = entry_points().get("floatctl.plugins", [])
+                            
+                            for entry_point in discovered:
+                                if entry_point.name == name:
+                                    plugin_class = entry_point.load()
+                                    plugin_instance = plugin_class()
+                                    plugin_instance.set_manager(plugin_manager)
+                                    plugin_instance._state = PluginState.ACTIVE  # Skip full lifecycle for now
+                                    info.instance = plugin_instance
+                                    info.state = PluginState.ACTIVE
+                                    break
+                    except Exception as e:
+                        info.state = PluginState.ERROR
+                        info.error = str(e)
+            
+            plugin_manager.register_cli_commands(cli_app)
+            return plugin_manager
+        else:
+            # Run async loading in new event loop
+            return asyncio.run(load_and_register_plugins_async(cli_app))
+    except RuntimeError:
+        # No event loop, create one
+        return asyncio.run(load_and_register_plugins_async(cli_app))
 
 
 def main():

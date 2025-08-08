@@ -17,6 +17,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     ForeignKey,
     Index,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -336,3 +337,48 @@ class DatabaseManager:
                 file_path=str(file_path),
                 reason=reason,
             )
+    
+    def execute_sql(self, query: str, params: tuple = None):
+        """Execute parameterized SQL query safely using SQLAlchemy.
+        
+        Args:
+            query: SQL query string with ? placeholders for parameters
+            params: Tuple of parameters to bind to placeholders
+            
+        Returns:
+            SQLAlchemy Result object with fetchall(), fetchone(), lastrowid etc.
+        """
+        with self.get_session() as session:
+            try:
+                if params:
+                    # Convert ? placeholders to SQLAlchemy named parameters
+                    param_dict = {}
+                    safe_query = query
+                    for i, param in enumerate(params):
+                        param_name = f"param_{i}"
+                        param_dict[param_name] = param
+                        safe_query = safe_query.replace("?", f":{param_name}", 1)
+                    
+                    result = session.execute(text(safe_query), param_dict)
+                else:
+                    # For queries without parameters, wrap in text()
+                    result = session.execute(text(query))
+                
+                session.commit()
+                
+                logger.debug(
+                    "sql_executed",
+                    query_preview=query[:100] + "..." if len(query) > 100 else query,
+                    param_count=len(params) if params else 0
+                )
+                
+                return result
+                
+            except Exception as e:
+                session.rollback()
+                logger.error(
+                    "sql_execution_failed",
+                    query_preview=query[:100] + "..." if len(query) > 100 else query,
+                    error=str(e)
+                )
+                raise

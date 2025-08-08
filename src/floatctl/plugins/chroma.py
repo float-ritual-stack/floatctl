@@ -92,9 +92,19 @@ class ChromaPlugin(PluginBase):
     version = "1.0.0"
     description = "Chroma vector database collection management and querying"
     
-    def register_commands(self, cli_group: click.Group) -> None:
-        """Register chroma commands with the CLI."""
+    def _register_legacy_commands(self, cli_group: click.Group) -> None:
+        """Register chroma commands using the legacy pattern."""
         cli_group.add_command(chroma)
+
+
+@click.group()
+def chroma():
+    """Chroma vector database operations.
+    
+    Manage collections, query documents, and analyze FLOAT workflow data
+    stored in your Chroma vector database.
+    """
+    pass
 
 
 @click.group()

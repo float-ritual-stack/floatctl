@@ -1,0 +1,67 @@
+[
+{
+  "uuid": "test-conversation-thinking",
+  "name": "Test Conversation with Thinking Blocks",
+  "created_at": "2025-08-02T03:50:00Z",
+  "updated_at": "2025-08-02T04:00:00Z",
+  "chat_messages": [
+    {
+      "sender": "human",
+      "content": [
+        {
+          "type": "text",
+          "text": "Can you help me understand how thinking blocks work?",
+          "start_timestamp": "2025-08-02T03:50:00Z"
+        }
+      ]
+    },
+    {
+      "sender": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "<thinking>\nThe user is asking about thinking blocks. I should:\n1. Explain what they are\n2. Show how they work\n3. Give a clear example\n\nThinking blocks contain the AI's internal reasoning process that happens before generating a response. This is valuable for understanding decision-making.\n</thinking>\n\nThinking blocks are internal reasoning sections that AI systems use to process and plan responses before presenting them to users. They typically contain:\n\n1. **Analysis** of the user's request\n2. **Planning** of the response structure\n3. **Decision-making** about what to include\n4. **Pattern recognition** from the conversation context\n\nThese blocks are usually hidden from the final output but contain valuable insights into the AI's reasoning process.",
+          "start_timestamp": "2025-08-02T03:51:00Z"
+        }
+      ]
+    },
+    {
+      "sender": "human",
+      "content": [
+        {
+          "type": "text",
+          "text": "Can you show me another example with tool use?",
+          "start_timestamp": "2025-08-02T03:52:00Z"
+        }
+      ]
+    },
+    {
+      "sender": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "<thinking>\nThe user wants an example with tool use. I should:\n- Use a file reading tool as an example\n- Show the thinking process around tool selection\n- Demonstrate how thinking blocks work with tool calls\n</thinking>\n\nI'll read a file to demonstrate how thinking blocks work with tool usage.",
+          "start_timestamp": "2025-08-02T03:53:00Z"
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01ABC",
+          "name": "read_file",
+          "input": {
+            "path": "/example/file.txt"
+          }
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01ABC",
+          "content": "File contents here..."
+        },
+        {
+          "type": "text",
+          "text": "As you can see, the thinking block helped me decide which tool to use and why."
+        }
+      ]
+    }
+  ]
+}
+]

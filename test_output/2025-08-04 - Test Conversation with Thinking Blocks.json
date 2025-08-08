@@ -1,0 +1,147 @@
+{
+  "uuid": "8ca09687-c388-4479-9a92-07c94e195fb7",
+  "name": "Test Conversation with Thinking Blocks",
+  "created_at": "2025-08-04T00:43:44.596919Z",
+  "updated_at": "2025-08-04T02:25:35.342798Z",
+  "account": {
+    "uuid": "ffbfce7e-ece6-4312-8e5b-71842d8b1d31"
+  },
+  "chat_messages": [
+    {
+      "uuid": "99c85351-4962-44bd-bb87-d761ce970962",
+      "text": "Can you explain how thinking blocks work in AI conversations?",
+      "content": [
+        {
+          "start_timestamp": "2025-08-04T00:43:47.486856Z",
+          "stop_timestamp": "2025-08-04T00:43:47.486856Z",
+          "type": "text",
+          "text": "Can you explain how thinking blocks work in AI conversations?",
+          "citations": []
+        }
+      ],
+      "sender": "human",
+      "created_at": "2025-08-04T00:43:47.505791Z",
+      "updated_at": "2025-08-04T00:43:47.505791Z",
+      "attachments": [],
+      "files": []
+    },
+    {
+      "uuid": "2f98cbf3-8435-4927-bfd3-bb75bbc46223",
+      "text": "The user is asking me to explain thinking blocks in AI conversations.\n\nLet me break this down:\n1. Thinking blocks contain internal reasoning\n2. They show the AI's thought process\n3. They're usually hidden from users\n4. They help with transparency and debugging\n\nThinking blocks are sections where AI systems process information internally before generating responses. They contain:\n\n1. **Analysis** of the user's request\n2. **Planning** for the response\n3. **Decision-making** about what to include\n4. **Pattern recognition** from context\n\nThese blocks help users understand how AI arrives at its conclusions.",
+      "content": [
+        {
+          "start_timestamp": "2025-08-04T00:43:51.592863Z",
+          "stop_timestamp": "2025-08-04T00:43:54.113380Z",
+          "type": "thinking",
+          "thinking": "The user is asking me to explain thinking blocks in AI conversations.\n\nLet me break this down:\n1. Thinking blocks contain internal reasoning\n2. They show the AI's thought process\n3. They're usually hidden from users\n4. They help with transparency and debugging",
+          "summaries": [
+            {
+              "summary": "Analyzing request about thinking blocks"
+            },
+            {
+              "summary": "Planning explanation structure"
+            }
+          ],
+          "cut_off": false
+        },
+        {
+          "start_timestamp": "2025-08-04T00:43:54.480039Z",
+          "stop_timestamp": "2025-08-04T00:43:54.716653Z",
+          "type": "text",
+          "text": "Thinking blocks are sections where AI systems process information internally before generating responses. They contain:\n\n1. **Analysis** of the user's request\n2. **Planning** for the response\n3. **Decision-making** about what to include\n4. **Pattern recognition** from context\n\nThese blocks help users understand how AI arrives at its conclusions.",
+          "citations": []
+        }
+      ],
+      "sender": "assistant",
+      "created_at": "2025-08-04T00:43:56.774409Z",
+      "updated_at": "2025-08-04T00:43:56.774409Z",
+      "attachments": [],
+      "files": []
+    },
+    {
+      "uuid": "78db50be-a8f4-4cc8-b121-5933f7ef6a5c",
+      "text": "Can you demonstrate thinking blocks with tool usage?",
+      "content": [
+        {
+          "start_timestamp": "2025-08-04T00:44:08.315956Z",
+          "stop_timestamp": "2025-08-04T00:44:08.315956Z",
+          "type": "text",
+          "text": "Can you demonstrate thinking blocks with tool usage?",
+          "citations": []
+        }
+      ],
+      "sender": "human",
+      "created_at": "2025-08-04T00:44:08.578541Z",
+      "updated_at": "2025-08-04T00:44:08.578541Z",
+      "attachments": [],
+      "files": []
+    },
+    {
+      "uuid": "ebc6a64b-2cfb-4bc8-a0f2-7bf787fc76d6",
+      "text": "The user wants me to demonstrate thinking blocks with tool usage.\n\nI should:\n1. Use a tool to show the process\n2. Include my reasoning about tool selection\n3. Show how thinking guides tool usage\n\nI'll demonstrate by reading a file to show how thinking blocks work with tools.\n\nThe thinking block helped me decide which tool to use and why.",
+      "content": [
+        {
+          "start_timestamp": "2025-08-04T00:44:11.771246Z",
+          "stop_timestamp": "2025-08-04T00:44:12.549091Z",
+          "type": "thinking",
+          "thinking": "The user wants me to demonstrate thinking blocks with tool usage.\n\nI should:\n1. Use a tool to show the process\n2. Include my reasoning about tool selection\n3. Show how thinking guides tool usage",
+          "summaries": [],
+          "cut_off": false
+        },
+        {
+          "start_timestamp": "2025-08-04T00:44:13.009081Z",
+          "stop_timestamp": "2025-08-04T00:44:13.624353Z",
+          "type": "text",
+          "text": "I'll demonstrate by reading a file to show how thinking blocks work with tools.",
+          "citations": []
+        },
+        {
+          "start_timestamp": "2025-08-04T00:44:13.754039Z",
+          "stop_timestamp": "2025-08-04T00:44:13.916653Z",
+          "type": "tool_use",
+          "name": "read_file",
+          "input": {
+            "path": "/tmp/example.txt"
+          },
+          "message": "Reading file",
+          "integration_name": "File Reader",
+          "integration_icon_url": null,
+          "context": null,
+          "display_content": null,
+          "approval_options": null,
+          "approval_key": null
+        },
+        {
+          "start_timestamp": null,
+          "stop_timestamp": null,
+          "type": "tool_result",
+          "name": "read_file",
+          "content": [
+            {
+              "type": "text",
+              "text": "File contents here...",
+              "uuid": "885514f3-ec09-4d57-a976-b5ab70c2f88b"
+            }
+          ],
+          "is_error": false,
+          "message": null,
+          "integration_name": null,
+          "integration_icon_url": null,
+          "display_content": null
+        },
+        {
+          "start_timestamp": null,
+          "stop_timestamp": null,
+          "type": "text",
+          "text": "The thinking block helped me decide which tool to use and why.",
+          "citations": []
+        }
+      ],
+      "sender": "assistant",
+      "created_at": "2025-08-04T00:44:15.452756Z",
+      "updated_at": "2025-08-04T00:44:15.452756Z",
+      "attachments": [],
+      "files": []
+    }
+  ]
+}

@@ -93,6 +93,51 @@ class ChromaClient:
         except:
             return False
     
+    def create_collection(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> Collection:
+        """Create a new collection.
+        
+        Args:
+            name: Collection name
+            metadata: Optional metadata for the collection
+            
+        Returns:
+            Created collection object
+        """
+        try:
+            collection = self.client.create_collection(name=name, metadata=metadata or {})
+            logger.info("collection_created", name=name)
+            return collection
+        except Exception as e:
+            logger.error("collection_create_failed", name=name, error=str(e))
+            raise
+    
+    def delete_collection(self, name: str) -> None:
+        """Delete a collection.
+        
+        Args:
+            name: Collection name to delete
+        """
+        try:
+            self.client.delete_collection(name)
+            logger.info("collection_deleted", name=name)
+        except Exception as e:
+            logger.error("collection_delete_failed", name=name, error=str(e))
+            raise
+    
+    def list_collections(self) -> List[Collection]:
+        """List all collections.
+        
+        Returns:
+            List of collection objects
+        """
+        try:
+            collections = self.client.list_collections()
+            logger.debug("collections_listed", count=len(collections))
+            return collections
+        except Exception as e:
+            logger.error("collections_list_failed", error=str(e))
+            raise
+    
     def add_context_marker(
         self,
         collection_name: str,
@@ -311,3 +356,277 @@ class ChromaClient:
             })
         
         return output
+    
+    # Additional ChromaDB operations for MCP server compatibility
+    
+    def add_documents(
+        self,
+        collection_name: str,
+        documents: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None
+    ) -> None:
+        """Add documents to a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            documents: List of document texts
+            metadatas: Optional list of metadata dicts
+            ids: Optional list of document IDs
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            raise ValueError(f"Collection '{collection_name}' not found")
+        
+        collection.add(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
+        )
+        
+        logger.info(
+            "documents_added",
+            collection=collection_name,
+            count=len(documents)
+        )
+    
+    def update_documents(
+        self,
+        collection_name: str,
+        ids: List[str],
+        documents: Optional[List[str]] = None,
+        metadatas: Optional[List[Dict[str, Any]]] = None
+    ) -> None:
+        """Update documents in a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            ids: List of document IDs to update
+            documents: Optional new document texts
+            metadatas: Optional new metadata dicts
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            raise ValueError(f"Collection '{collection_name}' not found")
+        
+        collection.update(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas
+        )
+        
+        logger.info(
+            "documents_updated",
+            collection=collection_name,
+            count=len(ids)
+        )
+    
+    def delete_documents(
+        self,
+        collection_name: str,
+        ids: List[str]
+    ) -> None:
+        """Delete documents from a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            ids: List of document IDs to delete
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            raise ValueError(f"Collection '{collection_name}' not found")
+        
+        collection.delete(ids=ids)
+        
+        logger.info(
+            "documents_deleted",
+            collection=collection_name,
+            count=len(ids)
+        )
+    
+    def get_documents(
+        self,
+        collection_name: str,
+        ids: Optional[List[str]] = None,
+        where: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        include: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Get documents from a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            ids: Optional list of specific document IDs
+            where: Optional where clause for filtering
+            limit: Optional limit on results
+            offset: Optional offset for pagination
+            include: Optional list of fields to include
+            
+        Returns:
+            Dictionary with documents, metadatas, ids, etc.
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            return {"documents": [], "metadatas": [], "ids": []}
+        
+        # Set default include if not provided
+        if include is None:
+            include = ["documents", "metadatas"]
+        
+        results = collection.get(
+            ids=ids,
+            where=where,
+            limit=limit,
+            offset=offset,
+            include=include
+        )
+        
+        return results
+    
+    def query_documents(
+        self,
+        collection_name: str,
+        query_texts: Optional[List[str]] = None,
+        query_embeddings: Optional[List[List[float]]] = None,
+        n_results: int = 10,
+        where: Optional[Dict[str, Any]] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Query documents in a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            query_texts: Optional list of query texts
+            query_embeddings: Optional list of query embeddings
+            n_results: Number of results to return
+            where: Optional where clause for metadata filtering
+            where_document: Optional where clause for document filtering
+            include: Optional list of fields to include
+            
+        Returns:
+            Dictionary with query results
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            return {"documents": [[]], "metadatas": [[]], "ids": [[]], "distances": [[]]}
+        
+        # Set default include if not provided
+        if include is None:
+            include = ["documents", "metadatas", "distances"]
+        
+        results = collection.query(
+            query_texts=query_texts,
+            query_embeddings=query_embeddings,
+            n_results=n_results,
+            where=where,
+            where_document=where_document,
+            include=include
+        )
+        
+        return results
+    
+    def count_documents(self, collection_name: str) -> int:
+        """Count documents in a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            
+        Returns:
+            Number of documents in the collection
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            return 0
+        
+        return collection.count()
+    
+    def get_collection_metadata(self, collection_name: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            
+        Returns:
+            Collection metadata or None if not found
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            return None
+        
+        return collection.metadata
+    
+    def modify_collection(
+        self,
+        collection_name: str,
+        new_name: Optional[str] = None,
+        new_metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Modify a collection's name or metadata.
+        
+        Args:
+            collection_name: Current name of the collection
+            new_name: Optional new name for the collection
+            new_metadata: Optional new metadata for the collection
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            raise ValueError(f"Collection '{collection_name}' not found")
+        
+        collection.modify(name=new_name, metadata=new_metadata)
+        
+        logger.info(
+            "collection_modified",
+            old_name=collection_name,
+            new_name=new_name,
+            metadata_updated=new_metadata is not None
+        )
+    
+    def upsert_documents(
+        self,
+        collection_name: str,
+        documents: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+        ids: Optional[List[str]] = None
+    ) -> None:
+        """Upsert documents to a collection (add or update).
+        
+        Args:
+            collection_name: Name of the collection
+            documents: List of document texts
+            metadatas: Optional list of metadata dicts
+            ids: Optional list of document IDs
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            raise ValueError(f"Collection '{collection_name}' not found")
+        
+        collection.upsert(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
+        )
+        
+        logger.info(
+            "documents_upserted",
+            collection=collection_name,
+            count=len(documents)
+        )
+    
+    def peek_collection(self, collection_name: str, limit: int = 10) -> Dict[str, Any]:
+        """Peek at documents in a collection.
+        
+        Args:
+            collection_name: Name of the collection
+            limit: Number of documents to peek at
+            
+        Returns:
+            Dictionary with sample documents and metadata
+        """
+        collection = self.get_collection(collection_name)
+        if not collection:
+            return {"documents": [], "metadatas": [], "ids": []}
+        
+        results = collection.peek(limit=limit)
+        return results

@@ -1,0 +1,10 @@
+{
+  "uuid": "198a28d3-0bb0-4047-bb6f-ac4061757dc9",
+  "name": "",
+  "created_at": "2025-08-04T04:50:43.497390Z",
+  "updated_at": "2025-08-04T04:50:43.497390Z",
+  "account": {
+    "uuid": "ffbfce7e-ece6-4312-8e5b-71842d8b1d31"
+  },
+  "chat_messages": []
+}

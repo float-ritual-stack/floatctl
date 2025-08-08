@@ -1,0 +1,1 @@
+# Regression tests to ensure backwards compatibility during refactoring
