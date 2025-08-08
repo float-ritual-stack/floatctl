@@ -38,6 +38,17 @@ uv run pytest --cov=floatctl --cov-report=html
 
 ## 🚨 CRITICAL: Plugin Development Rules
 
+### Architecture Decision: Nested Scope Pattern (FINAL)
+**As of August 2025, we use the NESTED SCOPE pattern for plugin registration.**
+
+**Why this pattern?** After testing decorator-based registration (commit `4739aa0`), we discovered fundamental incompatibilities with Click's context injection system. The nested scope pattern is:
+- ✅ **Proven stable** - Works reliably with Click contexts
+- ✅ **Simple to understand** - Clear scope boundaries  
+- ✅ **LLM-friendly** - Easy for AI assistants to generate correctly
+- ✅ **Debuggable** - Clear execution flow
+
+**NEVER use decorator-based registration** - it breaks Click context passing.
+
 ### Plugin Command Registration
 **EVERY command MUST be defined INSIDE the `register_commands()` method!**
 
@@ -128,3 +139,15 @@ floatctl dev scaffold my_plugin --output-dir ./plugins
 floatctl dev scaffold my_plugin --interactive
 ```
 **This creates a complete plugin with proper structure and avoids common mistakes!**
+
+### 🛡️ Regression Protection
+**Critical functionality is protected by regression tests in `tests/regression/test_plugin_system_stability.py`**
+
+These tests ensure:
+- ✅ Plugin registration works correctly
+- ✅ Database operations function properly  
+- ✅ Basic conversation splitting works
+- ✅ Plugin scaffolding generates correct patterns
+- ✅ CLI commands are discoverable
+
+**If any change breaks these tests, that change MUST be reverted immediately.**

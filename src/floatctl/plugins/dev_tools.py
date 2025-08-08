@@ -273,7 +273,8 @@ class {class_name}Plugin(PluginBase):
             """{info["description"]}"""
             pass
         
-        {async_decorator}
+        @{plugin_name.replace('-', '_')}.command()
+        @click.pass_context
         {"async " if info["has_async"] else ""}def hello(ctx: click.Context) -> None:
             """Say hello from the {plugin_name} plugin."""
             logger = log_command("{plugin_name}.hello", {{}})
@@ -292,9 +293,6 @@ class {class_name}Plugin(PluginBase):
             logger.info("echo_command_executed")
             
             console.print(f"🔊 Echo: {{message}}")
-        
-        # Add the hello command to the group
-        {plugin_name.replace('-', '_')}.add_command(hello)
     
     def validate_config(self) -> bool:
         """Validate plugin configuration."""
