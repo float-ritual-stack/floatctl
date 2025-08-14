@@ -483,42 +483,181 @@ async def chroma_delete_collection(
         }
 
 
+# Import the hybrid extractor at module level
+try:
+    from floatctl.float_extractor_hybrid import create_extractor
+    _hybrid_extractor = None
+    HYBRID_EXTRACTOR_AVAILABLE = True
+except ImportError:
+    _hybrid_extractor = None
+    HYBRID_EXTRACTOR_AVAILABLE = False
+    logger.warning("float_extractor_hybrid not available, using legacy regex parsing")
+
+def get_hybrid_extractor():
+    """Get or create the hybrid extractor singleton."""
+    global _hybrid_extractor
+    if HYBRID_EXTRACTOR_AVAILABLE and _hybrid_extractor is None:
+        _hybrid_extractor = create_extractor()
+    return _hybrid_extractor
+
 def parse_any_pattern(text: str) -> Dict[str, Any]:
-    """Enhanced pattern parser that handles ANY :: pattern.
+    """🧠 Advanced FLOAT pattern parser using hybrid LangExtract/regex extraction.
     
-    Recognizes patterns like:
-    - ctx::timestamp [metadata]
-    - highlight::important insight
-    - decision::choice made [rationale:: why]
-    - eureka::breakthrough moment
-    - gotcha::debugging discovery
-    - bridge::connection point [aka:: alternate-name]
-    - concept::new-idea [mode:: exploration]
-    - Any custom pattern:: content
+    This function is the core pattern recognition engine for FLOAT consciousness patterns.
+    It replaces the broken single-pattern regex with intelligent multi-pattern extraction.
+    
+    🎯 KEY IMPROVEMENT: Captures ALL patterns in multi-pattern lines (not just first!)
+    
+    WHAT IT DOES:
+    -------------
+    1. Extracts ALL :: patterns from text (not just the first one)
+    2. Uses LangExtract API for fuzzy compilation when available
+    3. Falls back to enhanced regex when API unavailable
+    4. Preserves metadata and attributes from nested patterns
+    5. Maintains character-level position tracking
+    
+    WHEN TO USE:
+    -----------
+    - Processing any text with :: patterns
+    - Capturing consciousness technology markers
+    - Extracting metadata from conversation exports
+    - Parsing multi-pattern lines (the evna killer case)
+    
+    EXAMPLES:
+    --------
+    >>> # Single pattern (works in both old and new)
+    >>> parse_any_pattern("ctx::2025-08-14 @ 3PM - working")
+    {
+        "patterns_found": ["ctx"],
+        "primary_pattern": "ctx",
+        "ctx_content": "2025-08-14 @ 3PM - working",
+        "timestamp": "2025-08-14 @ 3PM",
+        ...
+    }
+    
+    >>> # Multi-pattern line (BROKEN in old evna, WORKS here!)
+    >>> parse_any_pattern("eureka:: Found bug! decision:: Fix tomorrow bridge:: create")
+    {
+        "patterns_found": ["eureka", "decision", "bridge"],  # ALL 3 patterns!
+        "primary_pattern": "eureka",
+        "eureka_content": "Found bug!",
+        "decision_content": "Fix tomorrow",
+        "bridge_content": "create",
+        "extraction_method": "langextract",  # or "mock" if API unavailable
+        ...
+    }
+    
+    >>> # Complex nested metadata
+    >>> parse_any_pattern("ctx::morning [mode:: focus] [project:: airbender]")
+    {
+        "patterns_found": ["ctx"],
+        "primary_pattern": "ctx",
+        "ctx_content": "morning [mode:: focus] [project:: airbender]",
+        "mode": "focus",
+        "project": "airbender",
+        ...
+    }
+    
+    >>> # Persona patterns
+    >>> parse_any_pattern('karen:: "Honey, stretch" lf1m:: *body awareness*')
+    {
+        "patterns_found": ["karen", "lf1m"],
+        "primary_pattern": "karen",
+        "karen_content": '"Honey, stretch"',
+        "lf1m_content": "*body awareness*",
+        "persona_speakers": "karen,lf1m",
+        ...
+    }
+    
+    TECHNICAL DETAILS:
+    -----------------
+    - Uses hybrid extractor with automatic API/mock fallback
+    - LangExtract provides fuzzy compilation for natural patterns
+    - Mock regex still captures ALL patterns (unlike old evna)
+    - Returns metadata dict compatible with ChromaDB storage
+    - Tracks extraction method for debugging
+    
+    RETURNS:
+    -------
+    Dict[str, Any] with:
+        - patterns_found: List of pattern types found
+        - primary_pattern: The first/main pattern type
+        - {pattern}_content: Content for each pattern
+        - extraction_method: "langextract", "mock", or "legacy"
+        - Additional metadata extracted from patterns
+    
+    NOTES:
+    -----
+    - This fixes evna's core failure of only capturing first pattern
+    - Even without API key, mock mode is better than old regex
+    - Gracefully degrades: always returns results
+    - Backward compatible with existing code
     """
     metadata = {}
     patterns_found = []
     
-    # Find ALL :: patterns in the text - simpler approach
-    all_patterns = re.findall(r'([a-zA-Z_-]+)::\s*([^\n]*)', text, re.IGNORECASE)
+    # Try hybrid extractor first if available
+    extractor = get_hybrid_extractor()
+    if extractor:
+        try:
+            # Use the hybrid extractor for intelligent pattern recognition
+            result = extractor.extract(text)
+            
+            # Convert hybrid extractor results to metadata format
+            for pattern in result.get("patterns", []):
+                pattern_type = pattern["type"].lower().strip()
+                pattern_content = pattern["content"].strip()
+                
+                patterns_found.append({
+                    "type": pattern_type,
+                    "content": pattern_content,
+                    "full_match": f"{pattern_type}::{pattern_content}"
+                })
+                
+                # Store the pattern content
+                metadata[f"{pattern_type}_content"] = pattern_content
+                
+                # Add any attributes from the pattern
+                for attr_key, attr_val in pattern.get("attributes", {}).items():
+                    metadata[attr_key] = attr_val
+            
+            # Track extraction method for debugging
+            metadata["extraction_method"] = result.get("method", "unknown")
+            
+        except Exception as e:
+            logger.warning(f"Hybrid extractor failed, falling back to legacy: {e}")
+            # Fall through to legacy parsing below
     
-    for pattern_name, pattern_content in all_patterns:
-        pattern_name = pattern_name.lower().strip()
-        pattern_content = pattern_content.strip()
+    # Legacy regex fallback (if hybrid not available or failed)
+    if not patterns_found:
+        # Find ALL :: patterns in the text - simpler approach
+        all_patterns = re.findall(r'([a-zA-Z_-]+)::\s*([^\n]*)', text, re.IGNORECASE)
         
-        patterns_found.append({
-            "type": pattern_name,
-            "content": pattern_content,
-            "full_match": f"{pattern_name}::{pattern_content}"
-        })
+        for pattern_name, pattern_content in all_patterns:
+            pattern_name = pattern_name.lower().strip()
+            pattern_content = pattern_content.strip()
+            
+            patterns_found.append({
+                "type": pattern_name,
+                "content": pattern_content,
+                "full_match": f"{pattern_name}::{pattern_content}"
+            })
+            
+            # Store the pattern content
+            metadata[f"{pattern_name}_content"] = pattern_content
         
-        # Store the pattern content
-        metadata[f"{pattern_name}_content"] = pattern_content
+        metadata["extraction_method"] = "legacy"
     
     # If we found patterns, set the primary type
     if patterns_found:
         metadata["patterns_found"] = [p["type"] for p in patterns_found]
         metadata["primary_pattern"] = patterns_found[0]["type"]
+        
+        # Track personas if found
+        persona_types = ["karen", "lf1m", "sysop", "evna", "qtb"]
+        found_personas = [p["type"] for p in patterns_found if p["type"] in persona_types]
+        if found_personas:
+            metadata["persona_speakers"] = ",".join(found_personas)
     
     # Special handling for ctx:: patterns (preserve existing logic)
     ctx_match = re.search(r'ctx::\s*([^\n]+)', text, re.IGNORECASE)

@@ -34,7 +34,11 @@ node_modules/
 
 # Implementation plans (local only)
 .implementation-plans/
-!.implementation-plans/.gitkeep 
+!.implementation-plans/.gitkeep
+
+# Implementation workspace (consciousness technology workflow)
+implementation/
+!implementation/.gitkeep 
 
 # Task files
 # tasks.json
