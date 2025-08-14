@@ -349,14 +349,14 @@ class DailyReviewPlugin(PluginBase):
                 chroma = ChromaManager()
                 
                 # Get recent context
-                recent_context = chroma.query_collection(
+                recent_context = chroma.query_documents(
                     "active_context_stream",
                     query_texts=["daily work context"],
                     n_results=5
                 )
                 
                 # Get highlights
-                highlights = chroma.query_collection(
+                highlights = chroma.query_documents(
                     "float_highlights",
                     query_texts=["important insights"],
                     n_results=3
@@ -559,7 +559,7 @@ class PatternAnalyzerPlugin(PluginBase):
                 chroma = ChromaManager()
                 
                 # Get documents from collection
-                results = chroma.query_collection(
+                results = chroma.query_documents(
                     collection,
                     query_texts=["patterns analysis"],
                     n_results=limit
@@ -599,7 +599,7 @@ class PatternAnalyzerPlugin(PluginBase):
                 
                 for collection in collections:
                     try:
-                        results = chroma.query_collection(
+                        results = chroma.query_documents(
                             collection,
                             query_texts=[pattern],
                             n_results=20
@@ -678,7 +678,7 @@ class PatternAnalyzerPlugin(PluginBase):
                     total_count = 0
                     for collection in ["active_context_stream", "float_highlights", "conversation_highlights"]:
                         try:
-                            results = chroma.query_collection(
+                            results = chroma.query_documents(
                                 collection,
                                 query_texts=[pattern],
                                 n_results=50
@@ -827,7 +827,7 @@ def similar_patterns(ctx: click.Context, threshold: float) -> None:
         chroma = ChromaManager()
         
         # Get all context markers
-        ctx_results = chroma.query_collection(
+        ctx_results = chroma.query_documents(
             "active_context_stream",
             query_texts=["ctx::"],
             n_results=50
