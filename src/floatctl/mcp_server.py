@@ -645,6 +645,21 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
             
             # Store the pattern content
             metadata[f"{pattern_name}_content"] = pattern_content
+            
+            # Also extract nested patterns from within brackets
+            nested_patterns = re.findall(r'\[([a-zA-Z_-]+)::\s*([^\]]+)\]', pattern_content)
+            for nested_name, nested_content in nested_patterns:
+                nested_name = nested_name.lower().strip()
+                nested_content = nested_content.strip()
+                
+                patterns_found.append({
+                    "type": nested_name,
+                    "content": nested_content,
+                    "full_match": f"[{nested_name}::{nested_content}]"
+                })
+                
+                # Store the nested pattern content
+                metadata[f"{nested_name}_content"] = nested_content
         
         metadata["extraction_method"] = "legacy"
     

@@ -147,6 +147,24 @@ class HybridFloatExtractor:
                         attributes={"status": "active"}
                     )
                 ]
+            ),
+            # Bridgewalking pattern with nested patterns
+            lx.data.ExampleData(
+                text="bridgewalking:: hermit crab architecture [discovery:: tired feet] [connects:: disability justice]",
+                extractions=[
+                    lx.data.Extraction(
+                        extraction_class="bridgewalking",
+                        extraction_text="hermit crab architecture [discovery:: tired feet] [connects:: disability justice]"
+                    ),
+                    lx.data.Extraction(
+                        extraction_class="discovery",
+                        extraction_text="tired feet"
+                    ),
+                    lx.data.Extraction(
+                        extraction_class="connects",
+                        extraction_text="disability justice"
+                    )
+                ]
             )
         ]
     
@@ -197,8 +215,9 @@ class HybridFloatExtractor:
         
         # Pattern 1: Standard :: patterns with content
         # This regex captures multiple patterns per line (evna's weakness)
+        # Updated to handle text with brackets and better boundary detection
         standard_matches = re.finditer(
-            r'(\w+)::\s*([^:\n]+?)(?=\s+\w+::|$|\n)',
+            r'([a-zA-Z_-]+)::\s*([^\n]*?)(?=\s*[a-zA-Z_-]+::|$)',
             text,
             re.MULTILINE
         )
