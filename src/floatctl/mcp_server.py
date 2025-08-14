@@ -1806,7 +1806,7 @@ async def smart_chroma_query(
             )
         else:
             # Use generic query for other collections
-            results = chroma.query_collection(
+            results = chroma.query_documents(
                 collection_name=collection,
                 query_texts=[query],
                 n_results=limit,
@@ -1824,7 +1824,7 @@ async def smart_chroma_query(
                 formatted_results.append(item)
                 total_content += content + "\n"
         else:
-            # From query_collection
+            # From query_documents
             docs = results.get("documents", [[]])[0]
             metas = results.get("metadatas", [[]])[0]
             distances = results.get("distances", [[]])[0]
