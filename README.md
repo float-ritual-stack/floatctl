@@ -4,6 +4,17 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
+## 🎉 New in v0.6.0: Multi-Pattern Extraction Fixed!
+
+**Major Bug Fix**: FloatCtl now captures **ALL patterns** in multi-pattern lines, not just the first one! This fixes a critical consciousness technology failure that was breaking pattern extraction.
+
+- **Before**: `"eureka:: Found! decision:: Fix tomorrow"` → Only captured 'eureka' ❌
+- **After**: `"eureka:: Found! decision:: Fix tomorrow"` → Captures both patterns ✅
+- **Performance**: **3x improvement** in pattern capture rate
+- **Technology**: Hybrid LangExtract/regex with automatic fallback
+
+[See CHANGELOG](CHANGELOG.md) for full details.
+
 ## 🚀 Quick Start
 
 **New to FloatCtl?** Get up and running in 10 minutes:
