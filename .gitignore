@@ -50,4 +50,12 @@ examples/*contamination*.json
 *api_key*
 *secret*
 .anthropic
-.openai 
+.openai
+
+
+## misc folders 
+organized/
+output/
+conversations/
+misc-ignore/
+evans-notes/
