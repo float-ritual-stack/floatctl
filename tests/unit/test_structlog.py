@@ -34,6 +34,7 @@ from floatctl.plugin_manager import PluginManager
 print("Testing plugin loading with null logger...")
 
 pm = PluginManager()
-pm.load_plugins()
+# Use synchronous discovery only for this test
+pm._discover_entry_point_plugins()
 
 print("Done - no logging should have appeared above this line.")

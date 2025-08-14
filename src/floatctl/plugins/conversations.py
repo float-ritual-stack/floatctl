@@ -15,6 +15,9 @@ from rich.table import Table
 from floatctl.plugin_manager import PluginBase
 from floatctl.core.database import DatabaseManager, ProcessingStatus
 from floatctl.core.logging import log_command, log_file_operation
+from floatctl.core.consciousness_middleware import ConsciousnessMiddleware
+from floatctl.core.consciousness_chroma_bridge import ConsciousnessChromaBridge
+from floatctl.core.workflow_intelligence import WorkflowIntelligence
 
 console = Console()
 
@@ -63,6 +66,22 @@ class ConversationsPlugin(PluginBase):
             is_flag=True,
             help="Show what would be processed without actually doing it",
         )
+        @click.option(
+            "--consciousness-analysis",
+            is_flag=True,
+            default=False,
+            help="Enable consciousness contamination analysis (default: disabled)",
+        )
+        @click.option(
+            "--export-consciousness",
+            type=click.Path(path_type=Path),
+            help="Export consciousness analysis results to JSON file",
+        )
+        @click.option(
+            "--sync-to-chroma",
+            is_flag=True,
+            help="Sync consciousness analysis results to Chroma for semantic search",
+        )
         @click.pass_context
         def split(
             ctx: click.Context,
@@ -72,10 +91,27 @@ class ConversationsPlugin(PluginBase):
             by_date: bool,
             filter_after: Optional[datetime],
             dry_run: bool,
+            consciousness_analysis: bool,
+            export_consciousness: Optional[Path],
+            sync_to_chroma: bool,
         ) -> None:
             """Split a conversations export file into individual conversation files."""
             config = ctx.obj["config"]
             db_manager = DatabaseManager(config.db_path)
+            
+            # Initialize consciousness middleware if enabled
+            consciousness_middleware = None
+            chroma_bridge = None
+            workflow_intelligence = None
+            if consciousness_analysis:
+                consciousness_middleware = ConsciousnessMiddleware(db_manager)
+                workflow_intelligence = WorkflowIntelligence(db_manager)
+                console.print("[cyan]🧬 Consciousness analysis enabled[/cyan]")
+                console.print("[cyan]📋 Workflow intelligence enabled[/cyan]")
+                
+                if sync_to_chroma:
+                    chroma_bridge = ConsciousnessChromaBridge(db_manager)
+                    console.print("[cyan]🔗 Chroma sync enabled[/cyan]")
             
             # Set default output directory
             if output_dir is None:
@@ -147,6 +183,7 @@ class ConversationsPlugin(PluginBase):
                 # Process conversations with progress bar
                 processed = 0
                 errors = 0
+                consciousness_analyses = []
                 
                 with Progress(
                     SpinnerColumn(),
@@ -162,6 +199,38 @@ class ConversationsPlugin(PluginBase):
                             artifact_path = self._process_conversation(
                                 conv, output_dir, format, by_date
                             )
+                            
+                            # Run consciousness analysis if enabled
+                            if consciousness_middleware and artifact_path:
+                                try:
+                                    # Read the generated file content for analysis
+                                    if artifact_path.suffix == '.md':
+                                        with open(artifact_path, 'r', encoding='utf-8') as f:
+                                            content = f.read()
+                                        
+                                        # Analyze consciousness patterns
+                                        analysis = consciousness_middleware.analyze_conversation(
+                                            artifact_path, conv, content
+                                        )
+                                        
+                                        # Save analysis to database
+                                        consciousness_middleware.save_analysis(analysis)
+                                        consciousness_analyses.append(analysis)
+                                        
+                                        # Extract workflow intelligence
+                                        if workflow_intelligence:
+                                            workflow_intelligence.extract_workflow_intelligence(conv, content)
+                                        
+                                        # Sync to Chroma if enabled
+                                        if chroma_bridge:
+                                            chroma_bridge.sync_analysis_to_chroma(analysis)
+                                        
+                                        # Show alerts in console (optional - can be disabled)
+                                        for alert in analysis.alerts[:2]:  # Show max 2 alerts per conversation
+                                            console.print(f"  [yellow]{alert}[/yellow]")
+                                        
+                                except Exception as e:
+                                    console.print(f"  [red]Consciousness analysis failed: {e}[/red]")
                             
                             # Record artifact in database
                             if file_run:
@@ -208,6 +277,23 @@ class ConversationsPlugin(PluginBase):
                 console.print(f"\n[green]✓ Successfully processed {processed} conversations[/green]")
                 if errors > 0:
                     console.print(f"[yellow]⚠ {errors} conversations had errors[/yellow]")
+                
+                # Show consciousness analysis summary
+                if consciousness_middleware and consciousness_analyses:
+                    summary = consciousness_middleware.get_analysis_summary()
+                    console.print(f"\n[cyan]🧬 Consciousness Analysis Summary:[/cyan]")
+                    console.print(f"  • Total analyses: {summary['total_analyses']}")
+                    console.print(f"  • High contamination: {summary['high_contamination']}")
+                    console.print(f"  • Moderate contamination: {summary['moderate_contamination']}")
+                    console.print(f"  • Conversations with consciousness URLs: {summary['conversations_with_consciousness_urls']}")
+                    console.print(f"  • Strong dispatch opportunities: {summary['strong_dispatch_opportunities']}")
+                    console.print(f"  • Average contamination score: {summary['avg_contamination_score']}")
+                    console.print(f"  • Average dispatch score: {summary['avg_dispatch_score']}")
+                
+                # Export consciousness analysis if requested
+                if export_consciousness and consciousness_middleware:
+                    consciousness_middleware.export_analysis_results(export_consciousness)
+                    console.print(f"\n[green]📊 Consciousness analysis exported to: {export_consciousness}[/green]")
                 
                 cmd_logger.info(
                     "conversation_split_completed",
@@ -531,7 +617,16 @@ class ConversationsPlugin(PluginBase):
         
         return jsonl_path
     
-    def _format_conversation_markdown(self, conversation: Dict[str, Any], tool_calls_file: Optional[Path]) -> str:
+    def _extract_and_save_attachments(self, conversation: Dict[str, Any], base_path: Path) -> Dict[str, Any]:
+        """Extract and save attachments from conversation. Stub implementation."""
+        # TODO: Implement attachment extraction
+        return {
+            'attachments': [],
+            'attachment_count': 0,
+            'total_size': 0
+        }
+    
+    def _format_conversation_markdown(self, conversation: Dict[str, Any], tool_calls_file: Optional[Path] = None, attachment_info: Optional[Dict[str, Any]] = None) -> str:
         """Format conversation as markdown with tool call references."""
         # First, generate the main content to extract patterns from it
         content_lines = []
@@ -956,3 +1051,374 @@ The enhanced tool call extraction reveals **consciousness technology in operatio
         
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(analysis, f, indent=2)
+        
+        # Add consciousness analysis command
+        @conversations.command()
+        @click.option(
+            "--export", "-e",
+            type=click.Path(path_type=Path),
+            help="Export consciousness analysis results to JSON file",
+        )
+        @click.option(
+            "--contamination-level",
+            type=click.Choice(["all", "standard", "moderate", "high"]),
+            default="all",
+            help="Filter by contamination level",
+        )
+        @click.option(
+            "--project",
+            help="Filter by work project name",
+        )
+        @click.option(
+            "--limit", "-l",
+            type=int,
+            default=20,
+            help="Limit number of results",
+        )
+        @click.pass_context
+        def consciousness(
+            ctx: click.Context,
+            export: Optional[Path],
+            contamination_level: str,
+            project: Optional[str],
+            limit: int,
+        ) -> None:
+            """Query consciousness analysis results."""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            consciousness_middleware = ConsciousnessMiddleware(db_manager)
+            
+            # Build query conditions
+            where_conditions = []
+            params = []
+            
+            if contamination_level != "all":
+                where_conditions.append("contamination_level = ?")
+                params.append(contamination_level)
+            
+            if project:
+                where_conditions.append("primary_project = ?")
+                params.append(project)
+            
+            where_clause = ""
+            if where_conditions:
+                where_clause = "WHERE " + " AND ".join(where_conditions)
+            
+            # Query consciousness analyses
+            cursor = db_manager.execute_sql(f"""
+                SELECT 
+                    file_path, conversation_title, contamination_level, 
+                    contamination_score, consciousness_urls, work_urls,
+                    primary_project, dispatch_score, processed_at
+                FROM consciousness_analysis 
+                {where_clause}
+                ORDER BY contamination_score DESC, dispatch_score DESC
+                LIMIT ?
+            """, params + [limit])
+            
+            results = cursor.fetchall()
+            
+            if not results:
+                console.print("[yellow]No consciousness analysis results found[/yellow]")
+                return
+            
+            # Display results table
+            table = Table(title="🧬 Consciousness Analysis Results")
+            table.add_column("File", style="cyan")
+            table.add_column("Title", style="white")
+            table.add_column("Contamination", style="red")
+            table.add_column("Score", justify="right")
+            table.add_column("URLs", justify="right")
+            table.add_column("Project", style="green")
+            table.add_column("Dispatch", justify="right")
+            
+            for row in results:
+                contamination_style = {
+                    "high": "red",
+                    "moderate": "yellow", 
+                    "standard": "green"
+                }.get(row[2], "white")
+                
+                table.add_row(
+                    Path(row[0]).name,
+                    row[1][:40] + "..." if len(row[1]) > 40 else row[1],
+                    f"[{contamination_style}]{row[2]}[/{contamination_style}]",
+                    str(row[3]),
+                    f"{row[4]}/{row[5]}",
+                    row[6] or "-",
+                    str(row[7])
+                )
+            
+            console.print(table)
+            
+            # Show summary
+            summary = consciousness_middleware.get_analysis_summary()
+            console.print(f"\n[cyan]📊 Overall Summary:[/cyan]")
+            console.print(f"  • Total analyses: {summary['total_analyses']}")
+            console.print(f"  • High contamination: {summary['high_contamination']}")
+            console.print(f"  • Average contamination score: {summary['avg_contamination_score']}")
+            console.print(f"  • Strong dispatch opportunities: {summary['strong_dispatch_opportunities']}")
+            
+            # Export if requested
+            if export:
+                consciousness_middleware.export_analysis_results(export)
+                console.print(f"\n[green]📊 Full analysis exported to: {export}[/green]")
+        
+        @conversations.command()
+        @click.option(
+            "--days", "-d",
+            type=int,
+            default=7,
+            help="Number of days to look back",
+        )
+        @click.pass_context
+        def last_week(ctx: click.Context, days: int) -> None:
+            """What did I do last week?"""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            workflow = WorkflowIntelligence(db_manager)
+            
+            results = workflow.what_did_i_do_last_week(days)
+            
+            if not results['activities']:
+                console.print(f"[yellow]No completed activities found in the last {days} days[/yellow]")
+                return
+            
+            console.print(f"[cyan]📅 What you did in the last {days} days:[/cyan]")
+            console.print(f"[dim]Total activities: {results['total_activities']}[/dim]\n")
+            
+            # Group by project
+            for project, activities in results['by_project'].items():
+                table = Table(title=f"📋 {project.replace('_', ' ').title()}")
+                table.add_column("Activity", style="white", max_width=60)
+                table.add_column("Date", style="dim")
+                table.add_column("From", style="cyan", max_width=30)
+                
+                for activity in activities:
+                    date_str = datetime.fromisoformat(activity['date']).strftime("%m-%d")
+                    table.add_row(
+                        activity['activity'],
+                        date_str,
+                        activity['conversation'][:27] + "..." if len(activity['conversation']) > 30 else activity['conversation']
+                    )
+                
+                console.print(table)
+        
+        @conversations.command()
+        @click.option(
+            "--days", "-d",
+            type=int,
+            default=30,
+            help="Number of days to look back",
+        )
+        @click.pass_context
+        def nick_actions(ctx: click.Context, days: int) -> None:
+            """Action items from Nick."""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            workflow = WorkflowIntelligence(db_manager)
+            
+            results = workflow.action_items_from_nick(days)
+            
+            if not results['action_items']:
+                console.print(f"[green]No open action items from Nick in the last {days} days[/green]")
+                return
+            
+            console.print(f"[cyan]📋 Action items from Nick (last {days} days):[/cyan]")
+            console.print(f"[dim]Total: {results['total_items']} | High priority: {results['high_priority']}[/dim]\n")
+            
+            table = Table(title="🎯 Nick's Action Items")
+            table.add_column("Action", style="white", max_width=50)
+            table.add_column("Priority", style="red")
+            table.add_column("Context", style="dim", max_width=30)
+            table.add_column("From", style="cyan", max_width=25)
+            table.add_column("Date", style="dim")
+            
+            for item in results['action_items']:
+                priority_style = {
+                    'high': 'red',
+                    'medium': 'yellow',
+                    'low': 'green'
+                }.get(item['priority'], 'white')
+                
+                date_str = datetime.fromisoformat(item['date']).strftime("%m-%d")
+                
+                table.add_row(
+                    item['content'],
+                    f"[{priority_style}]{item['priority']}[/{priority_style}]",
+                    item['context'][:27] + "..." if len(item['context']) > 30 else item['context'],
+                    item['conversation'][:22] + "..." if len(item['conversation']) > 25 else item['conversation'],
+                    date_str
+                )
+            
+            console.print(table)
+        
+        @conversations.command()
+        @click.option(
+            "--days", "-d",
+            type=int,
+            default=14,
+            help="Number of days to look back",
+        )
+        @click.pass_context
+        def priorities(ctx: click.Context, days: int) -> None:
+            """What are my current priorities?"""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            workflow = WorkflowIntelligence(db_manager)
+            
+            results = workflow.current_priorities(days)
+            
+            console.print(f"[cyan]🎯 Current priorities (last {days} days):[/cyan]\n")
+            
+            # Show explicit priorities
+            if results['explicit_priorities']:
+                table = Table(title="📌 Explicit Priorities")
+                table.add_column("Priority", style="white", max_width=50)
+                table.add_column("Level", style="red")
+                table.add_column("Project", style="green")
+                table.add_column("From", style="cyan", max_width=25)
+                
+                for priority in results['explicit_priorities']:
+                    priority_style = {
+                        'high': 'red',
+                        'medium': 'yellow',
+                        'low': 'green'
+                    }.get(priority['priority_level'], 'white')
+                    
+                    table.add_row(
+                        priority['priority_text'],
+                        f"[{priority_style}]{priority['priority_level']}[/{priority_style}]",
+                        priority['project'],
+                        priority['conversation'][:22] + "..." if len(priority['conversation']) > 25 else priority['conversation']
+                    )
+                
+                console.print(table)
+            
+            # Show open action items as priorities
+            if results['open_action_items']:
+                table = Table(title="📋 Open Action Items")
+                table.add_column("Action", style="white", max_width=50)
+                table.add_column("Priority", style="red")
+                table.add_column("Source", style="blue")
+                table.add_column("From", style="cyan", max_width=25)
+                
+                for item in results['open_action_items']:
+                    priority_style = {
+                        'high': 'red',
+                        'medium': 'yellow',
+                        'low': 'green'
+                    }.get(item['priority'], 'white')
+                    
+                    table.add_row(
+                        item['content'],
+                        f"[{priority_style}]{item['priority']}[/{priority_style}]",
+                        item['source'],
+                        item['conversation'][:22] + "..." if len(item['conversation']) > 25 else item['conversation']
+                    )
+                
+                console.print(table)
+            
+            if not results['explicit_priorities'] and not results['open_action_items']:
+                console.print(f"[yellow]No explicit priorities or open action items found in the last {days} days[/yellow]")
+        
+        @conversations.command()
+        @click.option(
+            "--days", "-d",
+            type=int,
+            default=30,
+            help="How far back to look for forgotten tasks",
+        )
+        @click.pass_context
+        def forgotten(ctx: click.Context, days: int) -> None:
+            """What tasks might I have forgotten?"""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            workflow = WorkflowIntelligence(db_manager)
+            
+            results = workflow.forgotten_tasks(days)
+            
+            if not results['forgotten_items']:
+                console.print(f"[green]No potentially forgotten tasks found (older than {days} days)[/green]")
+                return
+            
+            console.print(f"[yellow]⚠️  Potentially forgotten tasks (older than {days} days):[/yellow]")
+            console.print(f"[dim]Total: {results['total_forgotten']} | High priority: {results['high_priority_forgotten']}[/dim]\n")
+            
+            table = Table(title="🤔 Potentially Forgotten Tasks")
+            table.add_column("Task", style="white", max_width=50)
+            table.add_column("Priority", style="red")
+            table.add_column("Source", style="blue")
+            table.add_column("Age", style="dim")
+            table.add_column("From", style="cyan", max_width=25)
+            
+            for item in results['forgotten_items']:
+                priority_style = {
+                    'high': 'red',
+                    'medium': 'yellow',
+                    'low': 'green'
+                }.get(item['priority'], 'white')
+                
+                # Calculate age
+                item_date = datetime.fromisoformat(item['date'])
+                age_days = (datetime.now() - item_date).days
+                age_str = f"{age_days}d"
+                
+                table.add_row(
+                    item['content'],
+                    f"[{priority_style}]{item['priority']}[/{priority_style}]",
+                    item['source'],
+                    age_str,
+                    item['conversation'][:22] + "..." if len(item['conversation']) > 25 else item['conversation']
+                )
+            
+            console.print(table)
+        
+        @conversations.command()
+        @click.option(
+            "--days", "-d",
+            type=int,
+            default=14,
+            help="Number of days to look back",
+        )
+        @click.pass_context
+        def meetings(ctx: click.Context, days: int) -> None:
+            """Meeting follow-ups and action items."""
+            config = ctx.obj["config"]
+            db_manager = DatabaseManager(config.db_path)
+            workflow = WorkflowIntelligence(db_manager)
+            
+            results = workflow.meeting_follow_ups(days)
+            
+            if not results['meeting_items']:
+                console.print(f"[green]No open meeting follow-ups in the last {days} days[/green]")
+                return
+            
+            console.print(f"[cyan]🤝 Meeting follow-ups (last {days} days):[/cyan]")
+            console.print(f"[dim]Total items: {results['total_items']}[/dim]\n")
+            
+            table = Table(title="📝 Meeting Action Items")
+            table.add_column("Action", style="white", max_width=50)
+            table.add_column("Priority", style="red")
+            table.add_column("Context", style="dim", max_width=30)
+            table.add_column("From", style="cyan", max_width=25)
+            table.add_column("Date", style="dim")
+            
+            for item in results['meeting_items']:
+                priority_style = {
+                    'high': 'red',
+                    'medium': 'yellow',
+                    'low': 'green'
+                }.get(item['priority'], 'white')
+                
+                date_str = datetime.fromisoformat(item['date']).strftime("%m-%d")
+                
+                table.add_row(
+                    item['content'],
+                    f"[{priority_style}]{item['priority']}[/{priority_style}]",
+                    item['context'][:27] + "..." if len(item['context']) > 30 else item['context'],
+                    item['conversation'][:22] + "..." if len(item['conversation']) > 25 else item['conversation'],
+                    date_str
+                )
+            
+            console.print(table)
