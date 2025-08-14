@@ -60,3 +60,28 @@ conversations/
 misc-ignore/
 evans-notes/
 artifacts/
+artifacts
+
+# Test output directories
+test_output/
+test_real_output/
+test_real_output_md/
+
+# Database files (Crush CLI)
+.crush/
+*.db
+*.db-shm
+*.db-wal
+
+# Coverage data
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments (additional)
+.mitmproxy-venv/
+*-venv/
+
+# Temporary/WIP scripts
+scripts/*_working.sh
+scripts/*_fixed.sh
