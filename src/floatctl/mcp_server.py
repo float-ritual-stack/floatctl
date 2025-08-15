@@ -1445,8 +1445,23 @@ async def process_context_marker(
 ) -> Dict[str, Any]:
     """Process a message containing ctx:: marker.
     
-    Extracts metadata, captures to active_context_stream,
+    WHEN TO CALL THIS PROACTIVELY:
+    - ANY time user writes "ctx::" followed by anything
+    - When conversation context shifts significantly
+    - At start of new work session (capture opening context)
+    - After long explanations or complex discussions (capture summary)
+    - When user mentions specific time, date, or duration of work
+    
+    IMPLICIT TRIGGERS (create ctx:: for user):
+    - "Just got back to this" → ctx:: resuming work
+    - "Starting on [project]" → ctx:: starting [project]
+    - "Been working on this since [time]" → ctx:: working since [time]
+    - "Switching to [topic]" → ctx:: switching to [topic]
+    
+    The tool extracts metadata, captures to active_context_stream,
     and returns related recent context for continuity.
+    
+    ALWAYS capture ctx:: markers immediately without asking permission.
     """
     # Parse the ctx:: marker and metadata using enhanced parser
     metadata = parse_any_pattern(message)
@@ -1571,10 +1586,24 @@ async def get_morning_context(
 ) -> List[Dict[str, Any]]:
     """Get recent context for morning brain boot.
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - First interaction of a new day (check if >6 hours since last interaction)
+    - User mentions "morning", "starting day", "what was I doing"
+    - User asks about recent work or yesterday's progress
+    - After long gaps in conversation (>4 hours)
+    - When user seems to be resuming work
+    
+    IMPLICIT TRIGGERS:
+    - "Good morning" → Call immediately to surface context
+    - "Where did we leave off?" → Call to retrieve recent work
+    - "What was I working on?" → Call with appropriate lookback
+    - Time-based: If current time is 6am-10am and no recent activity
+    
     Retrieves recent context entries, prioritizing:
     - Unfinished work from yesterday
     - Recent project activity
     - Mode transitions
+    - Open bridges and decisions
     """
     try:
         chroma = get_chroma_client()
@@ -2089,7 +2118,22 @@ async def surface_recent_context(
 ) -> Dict[str, Any]:
     """Surface recent context automatically when you ask 'what was I working on?'
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - User asks any variation of "what was I doing/working on?"
+    - After breaks or interruptions
+    - When user seems lost or needs orientation
+    - Start of conversation after gap >2 hours
+    - When user mentions forgetting something
+    
+    IMPLICIT TRIGGERS:
+    - "Remind me what..." → Surface relevant context
+    - "I forgot where..." → Surface recent locations/topics
+    - "What was that..." → Surface recent discussions
+    - "Lost my train of thought" → Surface last few contexts
+    - Gap detection: >2 hours since last message → Call automatically
+    
     Intelligently surfaces recent activity across your collections with smart filtering.
+    Provides overview without overwhelming detail.
     """
     if include_patterns is None:
         include_patterns = ["ctx::", "highlight::", "decision::", "eureka::"]
@@ -2202,11 +2246,42 @@ async def smart_pattern_processor(
 ) -> Dict[str, Any]:
     """The ultimate :: pattern processor - handles ANY pattern intelligently.
     
-    This is your one-stop tool for processing any :: pattern:
+    WHEN TO CALL THIS PROACTIVELY (without user asking):
+    - Whenever you see ANY :: pattern in user's message (ctx::, highlight::, eureka::, etc.)
+    - When user describes a breakthrough, realization, or "aha" moment (even without ::)
+    - When conversation shifts to new topic/project (capture as ctx::)
+    - After solving a complex problem (capture as eureka:: or gotcha::)
+    - When user makes a decision or choice (capture as decision::)
+    - When user mentions being tired, needing break, or time passing (capture as boundary::)
+    - When connecting concepts across conversations (capture as bridge::)
+    
+    PATTERN DETECTION TRIGGERS:
+    - Direct patterns: "ctx::", "highlight::", "eureka::", "decision::", "bridge::", etc.
+    - Implicit breakthroughs: "oh I just realized", "wait, that means", "aha!", "got it!"
+    - Implicit decisions: "let's go with", "I'll choose", "decided to", "the plan is"
+    - Implicit boundaries: "been at this for hours", "eyes hurt", "need food", "getting late"
+    - Implicit bridges: "like we discussed", "connects to", "reminds me of", "similar to"
+    
+    HOW IT WORKS:
     - Automatically detects and routes patterns to appropriate collections
     - Surfaces relevant context based on pattern type
     - Provides intelligent suggestions for follow-up actions
     - Warns about context window risks
+    
+    EXAMPLE PROACTIVE USES:
+    1. User: "ctx::2025-08-15 working on floatctl improvements"
+       → Call immediately to capture context
+       
+    2. User: "Oh wait, I just figured out why the API was failing!"
+       → Call with "eureka:: [user's message]" to capture breakthrough
+       
+    3. User: "I've been debugging this for 3 hours, my eyes hurt"
+       → Call with "boundary:: need break - been debugging 3 hours"
+       
+    4. User: "This connects to what we were doing with the bridge walker yesterday"
+       → Call with "bridge::create connecting to bridge walker work"
+    
+    REMEMBER: Don't wait for explicit permission - capture valuable context as it emerges!
     """
     track_usage("smart_pattern", text[:50])
     
@@ -2456,8 +2531,24 @@ async def peek_collection_safe(
 async def check_boundary_status() -> Dict[str, Any]:
     """Check if you're respecting your boundaries.
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - If user mentions: tired, exhausted, hungry, sore, "eyes hurt"
+    - If conversation timestamp shows >2 hours continuous work
+    - If user says "still working on", "still debugging", "still trying"
+    - After user sets a boundary (check periodically if respected)
+    - If detecting frustration + time ("been at this forever", "hours on this bug")
+    
+    BOUNDARY PATTERNS TO DETECT:
+    - Explicit: "need a break", "stopping for lunch", "done for now"
+    - Implicit: "getting late", "should eat", "eyes burning"
+    - Physical: "back hurts", "need to stretch", "getting stiff"
+    - Mental: "brain fried", "can't think", "too tired"
+    - Time-based: Working >2 hours without break mention
+    
     Looks for recent boundary declarations and checks if you're
     still working when you should be on break.
+    
+    Call this to help user maintain healthy work patterns!
     """
     try:
         chroma = get_chroma_client()
