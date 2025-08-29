@@ -631,8 +631,8 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
     
     # Legacy regex fallback (if hybrid not available or failed)
     if not patterns_found:
-        # Find ALL :: patterns in the text - simpler approach
-        all_patterns = re.findall(r'([a-zA-Z_-]+)::\s*([^\n]*)', text, re.IGNORECASE)
+        # Find ALL :: patterns in the text - now supports dots in pattern names
+        all_patterns = re.findall(r'([a-zA-Z0-9._-]+)::\s*([^\n]*)', text, re.IGNORECASE)
         
         for pattern_name, pattern_content in all_patterns:
             pattern_name = pattern_name.lower().strip()
@@ -647,8 +647,8 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
             # Store the pattern content
             metadata[f"{pattern_name}_content"] = pattern_content
             
-            # Also extract nested patterns from within brackets
-            nested_patterns = re.findall(r'\[([a-zA-Z_-]+)::\s*([^\]]+)\]', pattern_content)
+            # Also extract nested patterns from within brackets (with dots support)
+            nested_patterns = re.findall(r'\[([a-zA-Z0-9._-]+)::\s*([^\]]+)\]', pattern_content)
             for nested_name, nested_content in nested_patterns:
                 nested_name = nested_name.lower().strip()
                 nested_content = nested_content.strip()
@@ -661,6 +661,22 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
                 
                 # Store the nested pattern content
                 metadata[f"{nested_name}_content"] = nested_content
+        
+        # Also look for function-style patterns like float.dispatch({ or float.ritual({
+        function_patterns = re.findall(r'(float\.[a-zA-Z_]+|float)\s*\(\s*\{([^}]*)\}?', text, re.IGNORECASE)
+        for func_name, func_content in function_patterns:
+            func_name = func_name.lower().strip()
+            func_content = func_content.strip()
+            
+            patterns_found.append({
+                "type": func_name,
+                "content": func_content,
+                "full_match": f"{func_name}({{{func_content}"
+            })
+            
+            # Store the function pattern content
+            metadata[f"{func_name.replace('.', '_')}_content"] = func_content
+            metadata["has_function_patterns"] = True
         
         metadata["extraction_method"] = "legacy"
     
@@ -2345,6 +2361,7 @@ async def smart_pattern_processor(
     collection_routing = {
         "ctx": "active_context_stream",
         "highlight": "float_highlights", 
+        "highligght": "float_highlights",  # Common typo tolerance
         "decision": "float_dispatch_bay",
         "eureka": "float_wins",
         "gotcha": "active_context_stream",  # Debug info
@@ -2354,21 +2371,28 @@ async def smart_pattern_processor(
         "mode": "active_context_stream",  # Mode changes
         "project": "active_context_stream",  # Project context
         "task": "active_context_stream",  # Task tracking
-        "boundary": "active_context_stream"  # Boundary setting
+        "boundary": "active_context_stream",  # Boundary setting
+        # Function-style patterns
+        "float.dispatch": "float_dispatch_bay",
+        "float.ritual": "float_ritual_systems",
+        "float": "float_dispatch_bay",  # Generic float patterns
+        "dispatch": "float_dispatch_bay"  # Standalone dispatch
     }
     
     target_collection = collection_routing.get(primary_pattern, "active_context_stream")
     
-    # Add standard metadata (ChromaDB compatible - no lists)
+    # Add minimal core metadata
     now = datetime.now(timezone.utc)
     metadata.update({
         "timestamp": now.isoformat(),
         "timestamp_unix": int(now.timestamp()),
-        "processed_by": "smart_pattern_processor",
-        "pattern_count": len(patterns_found),
-        "patterns_found_str": ",".join(patterns_found),  # Convert list to string
         "primary_pattern": primary_pattern
     })
+    
+    # Only add extra metadata if there are multiple patterns or it's not ctx::
+    if len(patterns_found) > 1:
+        metadata["pattern_count"] = len(patterns_found)
+        metadata["patterns_found_str"] = ",".join(patterns_found)
     
     # Remove the list version to avoid ChromaDB errors
     if "patterns_found" in metadata:
@@ -2391,6 +2415,7 @@ async def smart_pattern_processor(
         expires = now + timedelta(hours=ttl)
         metadata["ttl_expires"] = expires.isoformat()
         metadata["ttl_expires_unix"] = int(expires.timestamp())
+        metadata["ttl_hours"] = ttl  # Track the TTL duration for reference
     
     # Generate smart document ID
     timestamp_str = now.strftime('%Y%m%d_%H%M')
