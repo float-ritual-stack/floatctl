@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Main entry point for the Evna Context Concierge MCP server."""
 
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple
@@ -665,7 +666,8 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
     
     # If we found patterns, set the primary type
     if patterns_found:
-        metadata["patterns_found"] = [p["type"] for p in patterns_found]
+        # Convert list to comma-separated string for ChromaDB compatibility
+        metadata["patterns_found"] = ",".join([p["type"] for p in patterns_found])
         metadata["primary_pattern"] = patterns_found[0]["type"]
         
         # Track personas if found
@@ -681,6 +683,34 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
         metadata.update(parse_ctx_metadata(ctx_line))
     
     return metadata
+
+def sanitize_metadata_for_chroma(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure all metadata values are ChromaDB-compatible primitives.
+    
+    ChromaDB only accepts str, int, float, bool, or None as metadata values.
+    This function converts complex types to their string representations.
+    
+    Args:
+        metadata: Dictionary with potentially non-primitive values
+        
+    Returns:
+        Dictionary with all values as ChromaDB-compatible primitives
+    """
+    sanitized = {}
+    for key, value in metadata.items():
+        if isinstance(value, (list, tuple)):
+            # Convert lists/tuples to comma-separated strings
+            sanitized[key] = ",".join(str(v) for v in value)
+        elif isinstance(value, dict):
+            # Convert dicts to JSON strings
+            sanitized[key] = json.dumps(value)
+        elif value is None or isinstance(value, (str, int, float, bool)):
+            # These are already valid ChromaDB types
+            sanitized[key] = value
+        else:
+            # Convert anything else to string
+            sanitized[key] = str(value)
+    return sanitized
 
 def parse_ctx_metadata(ctx_line: str) -> Dict[str, Any]:
     """Parse ctx:: specific metadata with auto-timestamp when missing/invalid."""
@@ -1055,12 +1085,17 @@ async def chroma_add_documents(
         total_content = "\n".join(documents)
         is_risky, warning = check_context_window_risk(total_content)
         
+        # Sanitize metadatas if provided
+        sanitized_metadatas = None
+        if metadatas:
+            sanitized_metadatas = [sanitize_metadata_for_chroma(m) for m in metadatas]
+        
         # Add documents using wrapper method
         chroma.add_documents(
             collection_name=collection_name,
             documents=documents,
             ids=ids,
-            metadatas=metadatas
+            metadatas=sanitized_metadatas
         )
         
         result = {
@@ -1294,12 +1329,17 @@ async def chroma_update_documents(
         else:
             warning = None
         
+        # Sanitize metadatas if provided
+        sanitized_metadatas = None
+        if metadatas:
+            sanitized_metadatas = [sanitize_metadata_for_chroma(m) for m in metadatas]
+        
         # Update documents using wrapper method
         chroma.update_documents(
             collection_name=collection_name,
             ids=ids,
             documents=documents,
-            metadatas=metadatas
+            metadatas=sanitized_metadatas
         )
         
         updated_aspects = []
@@ -1522,18 +1562,21 @@ async def process_context_marker(
         chroma = get_chroma_client()
         
         if auto_capture:
+            # Sanitize metadata for ChromaDB compatibility
+            sanitized_metadata = sanitize_metadata_for_chroma(metadata)
+            
             # Add to active_context_stream
             try:
                 doc_id = chroma.add_context_marker(
                     collection_name="active_context_stream",
                     document=message,
-                    metadata=metadata,
+                    metadata=sanitized_metadata,
                     doc_id=doc_id
                 )
                 captured = {
                     "id": doc_id,
                     "document": message,
-                    "metadata": metadata
+                    "metadata": metadata  # Return original metadata for display
                 }
             except Exception as e:
                 return {
