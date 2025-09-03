@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Main entry point for the Evna Context Concierge MCP server."""
 
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple
@@ -630,8 +631,8 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
     
     # Legacy regex fallback (if hybrid not available or failed)
     if not patterns_found:
-        # Find ALL :: patterns in the text - simpler approach
-        all_patterns = re.findall(r'([a-zA-Z_-]+)::\s*([^\n]*)', text, re.IGNORECASE)
+        # Find ALL :: patterns in the text - now supports dots in pattern names
+        all_patterns = re.findall(r'([a-zA-Z0-9._-]+)::\s*([^\n]*)', text, re.IGNORECASE)
         
         for pattern_name, pattern_content in all_patterns:
             pattern_name = pattern_name.lower().strip()
@@ -646,8 +647,8 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
             # Store the pattern content
             metadata[f"{pattern_name}_content"] = pattern_content
             
-            # Also extract nested patterns from within brackets
-            nested_patterns = re.findall(r'\[([a-zA-Z_-]+)::\s*([^\]]+)\]', pattern_content)
+            # Also extract nested patterns from within brackets (with dots support)
+            nested_patterns = re.findall(r'\[([a-zA-Z0-9._-]+)::\s*([^\]]+)\]', pattern_content)
             for nested_name, nested_content in nested_patterns:
                 nested_name = nested_name.lower().strip()
                 nested_content = nested_content.strip()
@@ -661,11 +662,28 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
                 # Store the nested pattern content
                 metadata[f"{nested_name}_content"] = nested_content
         
+        # Also look for function-style patterns like float.dispatch({ or float.ritual({
+        function_patterns = re.findall(r'(float\.[a-zA-Z_]+|float)\s*\(\s*\{([^}]*)\}?', text, re.IGNORECASE)
+        for func_name, func_content in function_patterns:
+            func_name = func_name.lower().strip()
+            func_content = func_content.strip()
+            
+            patterns_found.append({
+                "type": func_name,
+                "content": func_content,
+                "full_match": f"{func_name}({{{func_content}"
+            })
+            
+            # Store the function pattern content
+            metadata[f"{func_name.replace('.', '_')}_content"] = func_content
+            metadata["has_function_patterns"] = True
+        
         metadata["extraction_method"] = "legacy"
     
     # If we found patterns, set the primary type
     if patterns_found:
-        metadata["patterns_found"] = [p["type"] for p in patterns_found]
+        # Convert list to comma-separated string for ChromaDB compatibility
+        metadata["patterns_found"] = ",".join([p["type"] for p in patterns_found])
         metadata["primary_pattern"] = patterns_found[0]["type"]
         
         # Track personas if found
@@ -681,6 +699,34 @@ def parse_any_pattern(text: str) -> Dict[str, Any]:
         metadata.update(parse_ctx_metadata(ctx_line))
     
     return metadata
+
+def sanitize_metadata_for_chroma(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure all metadata values are ChromaDB-compatible primitives.
+    
+    ChromaDB only accepts str, int, float, bool, or None as metadata values.
+    This function converts complex types to their string representations.
+    
+    Args:
+        metadata: Dictionary with potentially non-primitive values
+        
+    Returns:
+        Dictionary with all values as ChromaDB-compatible primitives
+    """
+    sanitized = {}
+    for key, value in metadata.items():
+        if isinstance(value, (list, tuple)):
+            # Convert lists/tuples to comma-separated strings
+            sanitized[key] = ",".join(str(v) for v in value)
+        elif isinstance(value, dict):
+            # Convert dicts to JSON strings
+            sanitized[key] = json.dumps(value)
+        elif value is None or isinstance(value, (str, int, float, bool)):
+            # These are already valid ChromaDB types
+            sanitized[key] = value
+        else:
+            # Convert anything else to string
+            sanitized[key] = str(value)
+    return sanitized
 
 def parse_ctx_metadata(ctx_line: str) -> Dict[str, Any]:
     """Parse ctx:: specific metadata with auto-timestamp when missing/invalid."""
@@ -1055,12 +1101,17 @@ async def chroma_add_documents(
         total_content = "\n".join(documents)
         is_risky, warning = check_context_window_risk(total_content)
         
+        # Sanitize metadatas if provided
+        sanitized_metadatas = None
+        if metadatas:
+            sanitized_metadatas = [sanitize_metadata_for_chroma(m) for m in metadatas]
+        
         # Add documents using wrapper method
         chroma.add_documents(
             collection_name=collection_name,
             documents=documents,
             ids=ids,
-            metadatas=metadatas
+            metadatas=sanitized_metadatas
         )
         
         result = {
@@ -1294,12 +1345,17 @@ async def chroma_update_documents(
         else:
             warning = None
         
+        # Sanitize metadatas if provided
+        sanitized_metadatas = None
+        if metadatas:
+            sanitized_metadatas = [sanitize_metadata_for_chroma(m) for m in metadatas]
+        
         # Update documents using wrapper method
         chroma.update_documents(
             collection_name=collection_name,
             ids=ids,
             documents=documents,
-            metadatas=metadatas
+            metadatas=sanitized_metadatas
         )
         
         updated_aspects = []
@@ -1445,8 +1501,23 @@ async def process_context_marker(
 ) -> Dict[str, Any]:
     """Process a message containing ctx:: marker.
     
-    Extracts metadata, captures to active_context_stream,
+    WHEN TO CALL THIS PROACTIVELY:
+    - ANY time user writes "ctx::" followed by anything
+    - When conversation context shifts significantly
+    - At start of new work session (capture opening context)
+    - After long explanations or complex discussions (capture summary)
+    - When user mentions specific time, date, or duration of work
+    
+    IMPLICIT TRIGGERS (create ctx:: for user):
+    - "Just got back to this" → ctx:: resuming work
+    - "Starting on [project]" → ctx:: starting [project]
+    - "Been working on this since [time]" → ctx:: working since [time]
+    - "Switching to [topic]" → ctx:: switching to [topic]
+    
+    The tool extracts metadata, captures to active_context_stream,
     and returns related recent context for continuity.
+    
+    ALWAYS capture ctx:: markers immediately without asking permission.
     """
     # Parse the ctx:: marker and metadata using enhanced parser
     metadata = parse_any_pattern(message)
@@ -1507,18 +1578,21 @@ async def process_context_marker(
         chroma = get_chroma_client()
         
         if auto_capture:
+            # Sanitize metadata for ChromaDB compatibility
+            sanitized_metadata = sanitize_metadata_for_chroma(metadata)
+            
             # Add to active_context_stream
             try:
                 doc_id = chroma.add_context_marker(
                     collection_name="active_context_stream",
                     document=message,
-                    metadata=metadata,
+                    metadata=sanitized_metadata,
                     doc_id=doc_id
                 )
                 captured = {
                     "id": doc_id,
                     "document": message,
-                    "metadata": metadata
+                    "metadata": metadata  # Return original metadata for display
                 }
             except Exception as e:
                 return {
@@ -1571,10 +1645,24 @@ async def get_morning_context(
 ) -> List[Dict[str, Any]]:
     """Get recent context for morning brain boot.
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - First interaction of a new day (check if >6 hours since last interaction)
+    - User mentions "morning", "starting day", "what was I doing"
+    - User asks about recent work or yesterday's progress
+    - After long gaps in conversation (>4 hours)
+    - When user seems to be resuming work
+    
+    IMPLICIT TRIGGERS:
+    - "Good morning" → Call immediately to surface context
+    - "Where did we leave off?" → Call to retrieve recent work
+    - "What was I working on?" → Call with appropriate lookback
+    - Time-based: If current time is 6am-10am and no recent activity
+    
     Retrieves recent context entries, prioritizing:
     - Unfinished work from yesterday
     - Recent project activity
     - Mode transitions
+    - Open bridges and decisions
     """
     try:
         chroma = get_chroma_client()
@@ -2089,7 +2177,22 @@ async def surface_recent_context(
 ) -> Dict[str, Any]:
     """Surface recent context automatically when you ask 'what was I working on?'
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - User asks any variation of "what was I doing/working on?"
+    - After breaks or interruptions
+    - When user seems lost or needs orientation
+    - Start of conversation after gap >2 hours
+    - When user mentions forgetting something
+    
+    IMPLICIT TRIGGERS:
+    - "Remind me what..." → Surface relevant context
+    - "I forgot where..." → Surface recent locations/topics
+    - "What was that..." → Surface recent discussions
+    - "Lost my train of thought" → Surface last few contexts
+    - Gap detection: >2 hours since last message → Call automatically
+    
     Intelligently surfaces recent activity across your collections with smart filtering.
+    Provides overview without overwhelming detail.
     """
     if include_patterns is None:
         include_patterns = ["ctx::", "highlight::", "decision::", "eureka::"]
@@ -2202,11 +2305,42 @@ async def smart_pattern_processor(
 ) -> Dict[str, Any]:
     """The ultimate :: pattern processor - handles ANY pattern intelligently.
     
-    This is your one-stop tool for processing any :: pattern:
+    WHEN TO CALL THIS PROACTIVELY (without user asking):
+    - Whenever you see ANY :: pattern in user's message (ctx::, highlight::, eureka::, etc.)
+    - When user describes a breakthrough, realization, or "aha" moment (even without ::)
+    - When conversation shifts to new topic/project (capture as ctx::)
+    - After solving a complex problem (capture as eureka:: or gotcha::)
+    - When user makes a decision or choice (capture as decision::)
+    - When user mentions being tired, needing break, or time passing (capture as boundary::)
+    - When connecting concepts across conversations (capture as bridge::)
+    
+    PATTERN DETECTION TRIGGERS:
+    - Direct patterns: "ctx::", "highlight::", "eureka::", "decision::", "bridge::", etc.
+    - Implicit breakthroughs: "oh I just realized", "wait, that means", "aha!", "got it!"
+    - Implicit decisions: "let's go with", "I'll choose", "decided to", "the plan is"
+    - Implicit boundaries: "been at this for hours", "eyes hurt", "need food", "getting late"
+    - Implicit bridges: "like we discussed", "connects to", "reminds me of", "similar to"
+    
+    HOW IT WORKS:
     - Automatically detects and routes patterns to appropriate collections
     - Surfaces relevant context based on pattern type
     - Provides intelligent suggestions for follow-up actions
     - Warns about context window risks
+    
+    EXAMPLE PROACTIVE USES:
+    1. User: "ctx::2025-08-15 working on floatctl improvements"
+       → Call immediately to capture context
+       
+    2. User: "Oh wait, I just figured out why the API was failing!"
+       → Call with "eureka:: [user's message]" to capture breakthrough
+       
+    3. User: "I've been debugging this for 3 hours, my eyes hurt"
+       → Call with "boundary:: need break - been debugging 3 hours"
+       
+    4. User: "This connects to what we were doing with the bridge walker yesterday"
+       → Call with "bridge::create connecting to bridge walker work"
+    
+    REMEMBER: Don't wait for explicit permission - capture valuable context as it emerges!
     """
     track_usage("smart_pattern", text[:50])
     
@@ -2227,6 +2361,7 @@ async def smart_pattern_processor(
     collection_routing = {
         "ctx": "active_context_stream",
         "highlight": "float_highlights", 
+        "highligght": "float_highlights",  # Common typo tolerance
         "decision": "float_dispatch_bay",
         "eureka": "float_wins",
         "gotcha": "active_context_stream",  # Debug info
@@ -2236,21 +2371,28 @@ async def smart_pattern_processor(
         "mode": "active_context_stream",  # Mode changes
         "project": "active_context_stream",  # Project context
         "task": "active_context_stream",  # Task tracking
-        "boundary": "active_context_stream"  # Boundary setting
+        "boundary": "active_context_stream",  # Boundary setting
+        # Function-style patterns
+        "float.dispatch": "float_dispatch_bay",
+        "float.ritual": "float_ritual_systems",
+        "float": "float_dispatch_bay",  # Generic float patterns
+        "dispatch": "float_dispatch_bay"  # Standalone dispatch
     }
     
     target_collection = collection_routing.get(primary_pattern, "active_context_stream")
     
-    # Add standard metadata (ChromaDB compatible - no lists)
+    # Add minimal core metadata
     now = datetime.now(timezone.utc)
     metadata.update({
         "timestamp": now.isoformat(),
         "timestamp_unix": int(now.timestamp()),
-        "processed_by": "smart_pattern_processor",
-        "pattern_count": len(patterns_found),
-        "patterns_found_str": ",".join(patterns_found),  # Convert list to string
         "primary_pattern": primary_pattern
     })
+    
+    # Only add extra metadata if there are multiple patterns or it's not ctx::
+    if len(patterns_found) > 1:
+        metadata["pattern_count"] = len(patterns_found)
+        metadata["patterns_found_str"] = ",".join(patterns_found)
     
     # Remove the list version to avoid ChromaDB errors
     if "patterns_found" in metadata:
@@ -2273,6 +2415,7 @@ async def smart_pattern_processor(
         expires = now + timedelta(hours=ttl)
         metadata["ttl_expires"] = expires.isoformat()
         metadata["ttl_expires_unix"] = int(expires.timestamp())
+        metadata["ttl_hours"] = ttl  # Track the TTL duration for reference
     
     # Generate smart document ID
     timestamp_str = now.strftime('%Y%m%d_%H%M')
@@ -2456,8 +2599,24 @@ async def peek_collection_safe(
 async def check_boundary_status() -> Dict[str, Any]:
     """Check if you're respecting your boundaries.
     
+    WHEN TO CALL THIS PROACTIVELY:
+    - If user mentions: tired, exhausted, hungry, sore, "eyes hurt"
+    - If conversation timestamp shows >2 hours continuous work
+    - If user says "still working on", "still debugging", "still trying"
+    - After user sets a boundary (check periodically if respected)
+    - If detecting frustration + time ("been at this forever", "hours on this bug")
+    
+    BOUNDARY PATTERNS TO DETECT:
+    - Explicit: "need a break", "stopping for lunch", "done for now"
+    - Implicit: "getting late", "should eat", "eyes burning"
+    - Physical: "back hurts", "need to stretch", "getting stiff"
+    - Mental: "brain fried", "can't think", "too tired"
+    - Time-based: Working >2 hours without break mention
+    
     Looks for recent boundary declarations and checks if you're
     still working when you should be on break.
+    
+    Call this to help user maintain healthy work patterns!
     """
     try:
         chroma = get_chroma_client()
