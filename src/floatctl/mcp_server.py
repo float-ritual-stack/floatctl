@@ -121,6 +121,22 @@ from floatctl.mcp.patterns import (
     PATTERN_ROUTING
 )
 
+# Import ChromaDB operations from new modular structure
+from floatctl.mcp.chroma_tools import (
+    chroma_list_collections,
+    chroma_create_collection,
+    chroma_get_collection_info,
+    chroma_get_collection_count,
+    chroma_modify_collection,
+    chroma_delete_collection,
+    chroma_add_documents,
+    chroma_query_documents,
+    chroma_get_documents,
+    chroma_update_documents,
+    chroma_delete_documents,
+    chroma_peek_collection
+)
+
 # Try to import ollama, but don't fail if not available
 try:
     import ollama
@@ -208,8 +224,27 @@ try:
 except:
     pass
 
+# === REGISTER EXTRACTED CHROMADB FUNCTIONS ===
+# Register all ChromaDB functions from the new modular chroma_tools module
 
-# === CHROMADB COLLECTION OPERATIONS ===
+# Collection operations
+mcp.tool()(chroma_list_collections)
+mcp.tool()(chroma_create_collection)
+mcp.tool()(chroma_get_collection_info)
+mcp.tool()(chroma_get_collection_count)
+mcp.tool()(chroma_modify_collection)
+mcp.tool()(chroma_delete_collection)
+
+# Document operations
+mcp.tool()(chroma_add_documents)
+mcp.tool()(chroma_query_documents)
+mcp.tool()(chroma_get_documents)
+mcp.tool()(chroma_update_documents)
+mcp.tool()(chroma_delete_documents)
+mcp.tool()(chroma_peek_collection)
+
+
+# === CHROMADB COLLECTION OPERATIONS (TO BE REMOVED) ===
 
 @mcp.tool()
 async def chroma_list_collections(
