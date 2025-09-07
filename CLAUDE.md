@@ -44,7 +44,7 @@ src/floatctl/mcp/
 ├── chroma_tools.py          # ChromaDB operations (✅ Phase 2 complete)
 ├── context_tools.py         # Context management tools (✅ Phase 3 complete)
 ├── utils.py                 # Utility functions (✅ Phase 4 complete)
-├── resources.py             # MCP resources & prompts (Phase 5)
+├── resources.py             # MCP resources & prompts (✅ Phase 5 complete - 529 lines)
 └── core.py                  # Core MCP server setup (Phase 6)
 ```
 

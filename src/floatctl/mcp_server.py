@@ -158,9 +158,19 @@ from floatctl.mcp.utils import (
     parse_boundary_duration,
     generate_context_id,
     search_prompts,
-    find_related_bridges,
     debug_log,
     detect_boundary_need
+)
+
+# Import resources and prompts from new modular structure
+from floatctl.mcp.resources import (
+    PROMPT_LIBRARY,
+    ritual_prompt,
+    create_bridge,
+    get_recent_bridges_resource,
+    search_bridges_resource,
+    get_bridge_by_id,
+    find_related_bridges
 )
 
 # Try to import ollama, but don't fail if not available
@@ -279,6 +289,15 @@ mcp.tool()(smart_pattern_processor)
 
 # Context resources
 mcp.resource("context://active/recent")(get_recent_context_resource)
+
+# Consciousness prompts
+mcp.prompt()(ritual_prompt)
+mcp.prompt()(create_bridge)
+
+# Bridge resources
+mcp.resource("bridge://recent")(get_recent_bridges_resource)
+mcp.resource("bridge://search")(search_bridges_resource)
+mcp.resource("bridge://{bridge_id}")(get_bridge_by_id)
 
 
 # === CHROMADB COLLECTION OPERATIONS (TO BE REMOVED) ===
