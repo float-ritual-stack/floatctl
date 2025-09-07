@@ -1106,20 +1106,53 @@ async def chroma_add_documents(
         if metadatas:
             sanitized_metadatas = [sanitize_metadata_for_chroma(m) for m in metadatas]
         
-        # Add documents using wrapper method
-        chroma.add_documents(
-            collection_name=collection_name,
-            documents=documents,
-            ids=ids,
-            metadatas=sanitized_metadatas
-        )
-        
-        result = {
-            "success": True,
-            "collection_name": collection_name,
-            "documents_added": len(documents),
-            "message": f"Successfully added {len(documents)} documents to '{collection_name}'"
-        }
+        # Special handling for float_bridges collection to ensure consistent metadata
+        if collection_name == "float_bridges":
+            # Use centralized bridge creation for each document
+            created_ids = []
+            for i, (doc, doc_id) in enumerate(zip(documents, ids)):
+                # Get metadata for this document
+                doc_metadata = sanitized_metadatas[i] if sanitized_metadatas else {}
+                
+                # Extract bridge_type from metadata or infer from content
+                bridge_type = doc_metadata.get("bridge_type", "modular")
+                if "complete" in doc.lower():
+                    bridge_type = "complete"
+                elif "index" in doc.lower():
+                    bridge_type = "index"
+                
+                # Create bridge using centralized function
+                created_id = chroma.create_bridge_document(
+                    content=doc,
+                    metadata=doc_metadata,
+                    bridge_id=doc_id,  # Use provided ID if given
+                    bridge_type=bridge_type
+                )
+                created_ids.append(created_id)
+            
+            # Update result to show actual IDs created
+            result = {
+                "success": True,
+                "collection_name": collection_name,
+                "documents_added": len(documents),
+                "bridge_ids_created": created_ids,
+                "message": f"Successfully added {len(documents)} bridge documents to '{collection_name}' with standardized metadata"
+            }
+        else:
+            # Add documents using wrapper method for non-bridge collections
+            chroma.add_documents(
+                collection_name=collection_name,
+                documents=documents,
+                ids=ids,
+                metadatas=sanitized_metadatas
+            )
+            
+            result = {
+                "success": True,
+                "collection_name": collection_name,
+                "documents_added": len(documents),
+                "message": f"Successfully added {len(documents)} documents to '{collection_name}'"
+            }
         
         if warning:
             result["warning"] = warning
@@ -2437,13 +2470,32 @@ async def smart_pattern_processor(
     try:
         chroma = get_chroma_client()
         
-        # Capture to appropriate collection
-        doc_id = chroma.add_context_marker(
-            collection_name=target_collection,
-            document=text,
-            metadata=metadata,
-            doc_id=doc_id
-        )
+        # Special handling for bridge patterns to ensure consistent metadata
+        if primary_pattern == "bridge":
+            # Extract bridge type from content if present
+            bridge_type = "modular"  # Default
+            if "bridge::create" in text.lower():
+                bridge_type = "modular"
+            elif "complete" in text.lower():
+                bridge_type = "complete"
+            elif "index" in text.lower():
+                bridge_type = "index"
+            
+            # Use centralized bridge creation function
+            doc_id = chroma.create_bridge_document(
+                content=text,
+                metadata=metadata,
+                bridge_type=bridge_type
+            )
+        else:
+            # Capture to appropriate collection using existing method
+            doc_id = chroma.add_context_marker(
+                collection_name=target_collection,
+                document=text,
+                metadata=metadata,
+                doc_id=doc_id
+            )
+        
         captured_info["id"] = doc_id
         captured_info["captured"] = True
         
@@ -2706,6 +2758,510 @@ async def check_boundary_status() -> Dict[str, Any]:
         return {
             "error": f"Failed to check boundary: {str(e)}",
             "status": "error"
+        }
+
+
+# === MCP PROMPTS AND RESOURCES ===
+
+@mcp.prompt()
+async def ritual_prompt(
+    ritual_name: str = "session_sync",
+    include_context: bool = True
+) -> List[Dict[str, Any]]:
+    """Get a ritual prompt from float_ritual collection.
+    
+    This dynamically fetches prompts from ChromaDB, making them
+    available as MCP prompts that Claude Desktop can discover.
+    
+    Args:
+        ritual_name: Name or search term for the ritual (e.g., 'session_sync', 'annotate')
+        include_context: Whether to include recent context in the prompt
+    """
+    try:
+        # Use existing get_prompt logic to search float_ritual collection
+        chroma = get_chroma_client()
+        results = chroma.search_context(
+            collection_name="float_ritual",
+            query=ritual_name,
+            limit=1
+        )
+        
+        if not results:
+            # Fallback to a helpful message
+            return [{
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": f"No ritual found for '{ritual_name}'. Available rituals include: session_sync, annotate, coordination patterns. Use the get_prompt tool to explore the float_ritual collection."
+                }
+            }]
+        
+        best_result = results[0]
+        content = best_result.get("content", "")
+        metadata = best_result.get("metadata", {})
+        
+        # Start with the ritual content as the main prompt
+        messages = [{
+            "role": "user",
+            "content": {
+                "type": "text",
+                "text": content
+            }
+        }]
+        
+        # Optionally add recent context as a second message
+        if include_context:
+            try:
+                # Get recent context (last 6 hours)
+                context_results = chroma.query_recent_context(
+                    collection_name="active_context_stream",
+                    hours=6,
+                    limit=5
+                )
+                
+                if context_results.get("documents"):
+                    context_items = []
+                    for doc, meta in zip(
+                        context_results.get("documents", []),
+                        context_results.get("metadatas", [])
+                    ):
+                        timestamp = meta.get("timestamp", "")
+                        project = meta.get("project", "")
+                        mode = meta.get("mode", "")
+                        
+                        context_line = f"[{timestamp}]"
+                        if project:
+                            context_line += f" [project::{project}]"
+                        if mode:
+                            context_line += f" [mode::{mode}]"
+                        context_line += f" {doc[:150]}..."
+                        
+                        context_items.append(context_line)
+                    
+                    messages.append({
+                        "role": "user", 
+                        "content": {
+                            "type": "text",
+                            "text": f"Recent Context (last 6 hours):\n\n" + "\n\n".join(context_items)
+                        }
+                    })
+            except Exception as e:
+                # Context is optional - don't fail the whole prompt if it fails
+                pass
+        
+        return messages
+        
+    except Exception as e:
+        # Fallback error message
+        return [{
+            "role": "user",
+            "content": {
+                "type": "text", 
+                "text": f"Error loading ritual '{ritual_name}': {str(e)}. Try using the get_prompt tool directly."
+            }
+        }]
+
+
+@mcp.prompt()
+async def create_bridge(
+    focus: str = "current conversation",
+    threads: str = "",
+    project: str = ""
+) -> List[Dict[str, Any]]:
+    """
+    Generate a bridge creation template for current context.
+    
+    Args:
+        focus: What to focus the bridge on (default: "current conversation")
+        threads: Comma-separated active threads to preserve
+        project: Current project context (optional)
+    """
+    try:
+        # Generate CB-YYYYMMDD-HHMM-XXXX format ID
+        from datetime import datetime
+        import random
+        
+        now = datetime.now()
+        bridge_id = f"CB-{now.strftime('%Y%m%d-%H%M')}-{random.randint(4096,65535):04X}"
+        
+        # Build thread list
+        thread_list = []
+        if threads:
+            thread_list = [thread.strip() for thread in threads.split(",") if thread.strip()]
+        
+        # Format project context
+        project_context = f"\nProject: {project}" if project else ""
+        
+        # Create the bridge template message
+        bridge_template = f"""# Continuity Anchor: {bridge_id}
+
+## Session Context
+Date: {now.strftime('%Y-%m-%d')}
+Timestamp: {now.strftime('%H:%M:%S')}
+Focus: {focus}{project_context}
+Active Threads: {', '.join(thread_list) if thread_list else 'general conversation'}
+
+## Bridge Content
+[This section will be populated with the conversation summary when you run bridge::create]
+
+## Active Threads
+{chr(10).join([f'1. **{thread}**' for thread in thread_list]) if thread_list else '1. **General conversation flow**'}
+
+## Resumption Instructions
+
+```
+bridge::restore {bridge_id}
+```
+
+Use this ID in your next conversation to restore context:
+- Resource access: `bridge://{bridge_id}`
+- MCP resource URI: bridge://{bridge_id}
+- Restoration command: bridge::restore {bridge_id}
+
+## Notes
+- Bridge ID generated: {bridge_id}
+- Timestamp: {now.isoformat()}
+- Search hint: Use date '{now.strftime('%Y%m%d')}' for fuzzy matching"""
+
+        return [{
+            "role": "assistant",
+            "content": {
+                "type": "text",
+                "text": bridge_template
+            }
+        }]
+        
+    except Exception as e:
+        # Fallback error message
+        return [{
+            "role": "assistant", 
+            "content": {
+                "type": "text",
+                "text": f"Error generating bridge template: {str(e)}. Try using the smart_pattern_processor with 'bridge::create' pattern instead."
+            }
+        }]
+
+
+@mcp.resource("context://active/recent")
+async def get_recent_context_resource() -> Dict[str, Any]:
+    """Expose recent active context as a resource.
+    
+    This makes your active_context_stream directly accessible
+    to MCP clients without needing to call tools.
+    """
+    try:
+        chroma = get_chroma_client()
+        
+        # Get last 6 hours of context
+        results = chroma.query_recent_context(
+            collection_name="active_context_stream",
+            hours=6,
+            limit=10
+        )
+        
+        # Format for resource consumption
+        context_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context_window": "6_hours",
+            "total_entries": len(results.get("documents", [])),
+            "entries": []
+        }
+        
+        for doc, meta, doc_id in zip(
+            results.get("documents", []),
+            results.get("metadatas", []), 
+            results.get("ids", [])
+        ):
+            context_data["entries"].append({
+                "id": doc_id,
+                "content": doc,
+                "timestamp": meta.get("timestamp", ""),
+                "project": meta.get("project", ""),
+                "mode": meta.get("mode", ""),
+                "patterns": meta.get("patterns_found", ""),
+                "preview": doc[:200] + "..." if len(doc) > 200 else doc
+            })
+        
+        return {
+            "uri": "context://active/recent",
+            "mimeType": "application/json",
+            "text": json.dumps(context_data, indent=2)
+        }
+        
+    except Exception as e:
+        # Return error as JSON resource
+        error_data = {
+            "error": f"Failed to load recent context: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback": "Use query_recent_context tool instead"
+        }
+        
+        return {
+            "uri": "context://active/recent",
+            "mimeType": "application/json", 
+            "text": json.dumps(error_data, indent=2)
+        }
+
+
+@mcp.resource("bridge://recent")
+async def get_recent_bridges_resource() -> Dict[str, Any]:
+    """List the 5 most recent bridges for quick access."""
+    try:
+        chroma = get_chroma_client()
+        
+        # Get the 5 most recent bridges (from the end of the collection)
+        total_count = chroma.count_documents(collection_name="float_bridges")
+        offset = max(0, total_count - 5)  # Get last 5 documents
+        
+        results = chroma.get_documents(
+            collection_name="float_bridges",
+            limit=5,
+            offset=offset,
+            include=["documents", "metadatas"]
+        )
+        
+        # Reverse the order so newest is first
+        if results.get("documents"):
+            results["documents"] = list(reversed(results["documents"]))
+            results["metadatas"] = list(reversed(results["metadatas"]))
+            if "ids" in results:
+                results["ids"] = list(reversed(results["ids"]))
+        
+        # Format for resource consumption
+        bridges_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_bridges": total_count,
+            "recent_count": len(results.get("documents", [])),
+            "bridges": []
+        }
+        
+        for doc, meta, doc_id in zip(
+            results.get("documents", []),
+            results.get("metadatas", []),
+            results.get("ids", [])
+        ):
+            bridge_id = meta.get("bridge_id", meta.get("anchor_id", f"bridge_{doc_id}"))
+            bridges_data["bridges"].append({
+                "bridge_id": bridge_id,
+                "created": meta.get("timestamp", ""),
+                "active_threads": meta.get("active_threads", "").split(",") if meta.get("active_threads") else [],
+                "mode": meta.get("mode", ""),
+                "project": meta.get("project", ""),
+                "preview": doc[:150] + "..." if len(doc) > 150 else doc,
+                "restoration_command": f"bridge::restore {bridge_id}",
+                "resource_uri": f"bridge://{bridge_id}"
+            })
+        
+        return {
+            "uri": "bridge://recent",
+            "mimeType": "application/json",
+            "text": json.dumps(bridges_data, indent=2)
+        }
+        
+    except Exception as e:
+        # Return error as JSON resource
+        error_data = {
+            "error": f"Failed to load recent bridges: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback": "Use smart_chroma_query with collection='float_bridges' instead"
+        }
+        
+        return {
+            "uri": "bridge://recent", 
+            "mimeType": "application/json",
+            "text": json.dumps(error_data, indent=2)
+        }
+
+
+@mcp.resource("bridge://search")
+async def search_bridges_resource() -> Dict[str, Any]:
+    """Search interface for finding bridges by content or metadata."""
+    try:
+        chroma = get_chroma_client()
+        
+        # Get collection info for search guidance  
+        total_count = chroma.count_documents(collection_name="float_bridges")
+        
+        collection_info = {
+            "collection_name": "float_bridges",
+            "total_bridges": total_count,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "search_instructions": {
+                "specific_bridge": "Use resource: bridge://{bridge_id}",
+                "by_date": "Use resource: bridge://YYYYMMDD for fuzzy date search", 
+                "latest_bridge": "Use resource: bridge://latest",
+                "semantic_search": "Use tool: smart_chroma_query with collection='float_bridges'"
+            },
+            "available_metadata": [
+                "bridge_id", "timestamp", "active_threads", "mode", 
+                "project", "conversation_id", "anchor_id"
+            ],
+            "example_queries": [
+                "bridge::restore CB-20250511-2000-7B3D",
+                "bridge://latest",  
+                "bridge://20250807",
+                "smart_chroma_query('airbender', collection='float_bridges')"
+            ]
+        }
+        
+        return {
+            "uri": "bridge://search",
+            "mimeType": "application/json", 
+            "text": json.dumps(collection_info, indent=2)
+        }
+        
+    except Exception as e:
+        # Return error as JSON resource
+        error_data = {
+            "error": f"Failed to load bridge search info: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback": "Use smart_chroma_query tool instead"
+        }
+        
+        return {
+            "uri": "bridge://search",
+            "mimeType": "application/json",
+            "text": json.dumps(error_data, indent=2)
+        }
+
+
+def _find_related_bridges(bridge_id: str, chroma_client) -> List[Dict[str, str]]:
+    """Find bridges that reference this one or share context."""
+    try:
+        # Search for bridges that mention this bridge ID
+        results = chroma_client.query_documents(
+            collection_name="float_bridges",
+            query_texts=[bridge_id],
+            n_results=3,
+            include=["metadatas"]
+        )
+        
+        related = []
+        for meta in results.get("metadatas", []):
+            if meta.get("bridge_id") != bridge_id:  # Don't include self
+                related.append({
+                    "bridge_id": meta.get("bridge_id", ""),
+                    "timestamp": meta.get("timestamp", ""),
+                    "threads": meta.get("active_threads", "")
+                })
+        
+        return related[:2]  # Limit to 2 related bridges
+        
+    except Exception as e:
+        return [{"error": f"Could not find related bridges: {str(e)}"}]
+
+
+@mcp.resource("bridge://{bridge_id}")
+async def get_bridge_by_id(bridge_id: str) -> Dict[str, Any]:
+    """
+    Restore a specific bridge by its ID for session continuation.
+    
+    Example URIs:
+    - bridge://CB-20250807-1430-A7B3
+    - bridge://latest  (special case for most recent)  
+    - bridge://20250807  (fuzzy match by date)
+    """
+    try:
+        chroma = get_chroma_client()
+        results = None
+        search_method = ""
+        
+        # Handle special cases
+        if bridge_id == "latest":
+            # Get the most recent bridge
+            search_method = "latest_bridge"
+            results = chroma.get_documents(
+                collection_name="float_bridges",
+                limit=1,
+                include=["documents", "metadatas"]
+            )
+        elif len(bridge_id) == 8 and bridge_id.isdigit():
+            # Date-based fuzzy search (YYYYMMDD)
+            search_method = f"date_search_{bridge_id}"
+            results = chroma.query_documents(
+                collection_name="float_bridges", 
+                query_texts=[f"CB-{bridge_id}"],
+                n_results=3,
+                include=["documents", "metadatas"]
+            )
+        else:
+            # Try exact bridge ID lookup first
+            search_method = f"exact_id_{bridge_id}"
+            try:
+                results = chroma.query_documents(
+                    collection_name="float_bridges",
+                    query_texts=[bridge_id],
+                    n_results=1,
+                    include=["documents", "metadatas"]
+                )
+            except:
+                # Fallback to semantic search
+                search_method = f"semantic_search_{bridge_id}"
+                results = chroma.query_documents(
+                    collection_name="float_bridges",
+                    query_texts=[bridge_id],
+                    n_results=1, 
+                    include=["documents", "metadatas"]
+                )
+        
+        # Format for restoration
+        if results and results.get("documents"):
+            doc = results["documents"][0]
+            meta = results.get("metadatas", [{}])[0]
+            found_bridge_id = meta.get("bridge_id", bridge_id)
+            
+            bridge_data = {
+                "bridge_id": found_bridge_id,
+                "created": meta.get("timestamp", ""),
+                "active_threads": meta.get("active_threads", "").split(",") if meta.get("active_threads") else [],
+                "context": doc,
+                "search_method": search_method,
+                "restoration_command": f"bridge::restore {found_bridge_id}",
+                "related_bridges": _find_related_bridges(found_bridge_id, chroma),
+                "metadata": {
+                    "mode": meta.get("mode", ""),
+                    "project": meta.get("project", ""),
+                    "conversation_id": meta.get("conversation_id", "")
+                }
+            }
+            
+            return {
+                "uri": f"bridge://{bridge_id}",
+                "mimeType": "application/json",
+                "text": json.dumps(bridge_data, indent=2)
+            }
+        
+        # Bridge not found - provide helpful response
+        error_data = {
+            "error": f"Bridge '{bridge_id}' not found",
+            "search_method": search_method,
+            "suggestions": [
+                "Try 'bridge://latest' for the most recent bridge",
+                "Use date format like 'bridge://20250807' for fuzzy date search",
+                "Check bridge ID format: CB-YYYYMMDD-HHMM-XXXX",
+                "Use smart_chroma_query tool to search bridge content"
+            ],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        return {
+            "uri": f"bridge://{bridge_id}",
+            "mimeType": "application/json",
+            "text": json.dumps(error_data, indent=2) 
+        }
+        
+    except Exception as e:
+        # Return error as JSON resource
+        error_data = {
+            "error": f"Failed to retrieve bridge '{bridge_id}': {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fallback": "Use smart_chroma_query with collection='float_bridges' instead"
+        }
+        
+        return {
+            "uri": f"bridge://{bridge_id}",
+            "mimeType": "application/json",
+            "text": json.dumps(error_data, indent=2)
         }
 
 

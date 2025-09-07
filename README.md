@@ -4,14 +4,21 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
-## 🎉 New in v0.6.0: Multi-Pattern Extraction Fixed!
+## 🎉 New in v0.8.0: Bridge Metadata Standardization & MCP Enhancement Suite!
 
-**Major Bug Fix**: FloatCtl now captures **ALL patterns** in multi-pattern lines, not just the first one! This fixes a critical consciousness technology failure that was breaking pattern extraction.
+**Major Infrastructure Improvement**: FloatCtl now creates bridges with **standardized metadata** across all creation methods, plus enhanced MCP server integration for Claude Desktop users.
 
-- **Before**: `"eureka:: Found! decision:: Fix tomorrow"` → Only captured 'eureka' ❌
-- **After**: `"eureka:: Found! decision:: Fix tomorrow"` → Captures both patterns ✅
-- **Performance**: **3x improvement** in pattern capture rate
-- **Technology**: Hybrid LangExtract/regex with automatic fallback
+### Bridge Metadata Standardization
+- **Before**: Inconsistent metadata (`created` vs `timestamp`, missing bridge IDs) ❌  
+- **After**: All bridges have standardized fields (`bridge_id`, `created`, `created_at`, `created_unix`) ✅
+- **Impact**: Reliable date-based queries and bridge restoration workflow
+- **Technology**: Centralized `create_bridge_document()` function
+
+### MCP Server Enhancement
+- **New Prompts**: `ritual_prompt()` and `create_bridge()` for Claude Desktop
+- **New Resources**: `bridge://recent`, `bridge://search`, `bridge://{bridge_id}`
+- **Integration**: Seamless bridge creation and restoration in Claude Desktop
+- **Workflow**: `bridge::create` → `bridge::restore {id}` across conversations
 
 [See CHANGELOG](CHANGELOG.md) for full details.
 

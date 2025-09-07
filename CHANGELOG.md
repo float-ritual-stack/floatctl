@@ -5,6 +5,62 @@ All notable changes to floatctl-py will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-09-07
+
+### 🎯 Major Feature: Bridge Metadata Standardization & MCP Enhancement Suite
+
+This release solves critical metadata inconsistency issues in bridge creation and significantly enhances the MCP server with prompts and resources for better Claude Desktop integration.
+
+### Added
+- **Centralized Bridge Creation** - `create_bridge_document()` function in ChromaManager
+  - Standardized metadata fields for all bridges regardless of creation method
+  - Consistent bridge ID generation (CB-YYYYMMDD-HHMM-XXXX format)
+  - Bridge type classification (modular, complete, index)
+  - Unix timestamp generation for reliable date-based queries
+- **MCP Prompts & Resources** - Enhanced Claude Desktop integration
+  - `ritual_prompt()` - Dynamic prompts from float_ritual collection
+  - `create_bridge()` - Bridge creation templates with context
+  - `bridge://recent` - Quick access to 5 most recent bridges
+  - `bridge://search` - Semantic search in bridges collection
+  - `bridge://{bridge_id}` - Direct bridge restoration by ID
+  - Recent context resource for active_context_stream access
+- **Thread Readers Plugin** - New comprehensive conversation extraction capabilities
+  - Advanced conversation processing and pattern extraction
+  - Supports multiple input formats and extraction methods
+  - Integrated with plugin architecture and CLI commands
+
+### Fixed
+- **Critical: Bridge Metadata Inconsistency** - Bridges now have consistent metadata
+  - Before: Some had `created`, others `timestamp`, many missing unix timestamps
+  - After: All bridges have `bridge_id`, `created`, `created_at`, `created_unix`, `bridge_type`
+  - Affects both `smart_pattern_processor` and `chroma_add_documents` creation paths
+- **MCP Resource Visibility** - Added regular resources alongside resource templates
+  - Resource templates with {id} parameters weren't showing in Resources section
+  - Now provides both quick-access resources and parameterized templates
+
+### Enhanced
+- **Smart Pattern Processor** - Special handling for bridge patterns
+  - Uses centralized bridge creation for `bridge::` patterns
+  - Automatic bridge type inference from content
+  - Maintains backward compatibility with existing metadata
+- **ChromaDB Document Addition** - float_bridges collection gets special treatment
+  - All bridge additions automatically use standardized metadata
+  - Bridge type inference from content and metadata
+  - Returns actual bridge IDs created for verification
+
+### Technical Details
+- Standardized metadata schema ensures reliable date-based queries
+- Backward compatibility maintained with `timestamp` and `timestamp_unix` fields
+- MCP server follows FastMCP patterns with proper resource management
+- Bridge ID format validation and collision prevention
+- Enhanced error handling and logging for bridge operations
+
+### Documentation
+- Updated CLAUDE.md with extensive working style examples
+- Added conversation storage location documentation
+- Enhanced MCP server documentation with usage examples
+- Plugin development patterns documented
+
 ## [0.7.0] - 2025-08-29
 
 ### 🎯 Major Feature: Comprehensive Conversation Extraction Suite

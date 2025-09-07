@@ -630,3 +630,72 @@ class ChromaClient:
         
         results = collection.peek(limit=limit)
         return results
+    
+    def create_bridge_document(
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        bridge_id: Optional[str] = None,
+        bridge_type: str = "modular"
+    ) -> str:
+        """Create a bridge document with standardized metadata.
+        
+        This ensures all bridges have consistent metadata fields regardless
+        of how they're created (smart_pattern_processor, direct calls, etc).
+        
+        Args:
+            content: The bridge content/description
+            metadata: Optional additional metadata to merge
+            bridge_id: Optional bridge ID (generated if not provided)
+            bridge_type: Type of bridge (modular, complete, index)
+            
+        Returns:
+            The bridge ID that was created
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Generate bridge ID if not provided
+        if not bridge_id:
+            timestamp_str = now.strftime('%Y%m%d-%H%M')
+            # Generate a short hash from content for uniqueness
+            content_hash = hash(content[:100]) % 10000
+            bridge_id = f"CB-{timestamp_str}-{content_hash:04X}"
+        
+        # Start with standardized metadata
+        standard_metadata = {
+            "bridge_id": bridge_id,
+            "created": now.strftime('%Y-%m-%d'),
+            "created_at": now.isoformat(),
+            "created_unix": int(now.timestamp()),
+            "bridge_type": bridge_type,
+            "timestamp": now.isoformat(),  # For backward compatibility
+            "timestamp_unix": int(now.timestamp())  # For backward compatibility
+        }
+        
+        # Merge with provided metadata
+        if metadata:
+            # Don't overwrite standard fields, but allow enrichment
+            for key, value in metadata.items():
+                if key not in ["bridge_id", "created", "created_at", "created_unix"]:
+                    standard_metadata[key] = value
+        
+        # Ensure collection exists
+        if not self.collection_exists("float_bridges"):
+            self.create_collection("float_bridges")
+        
+        # Add the document
+        collection = self.get_collection("float_bridges")
+        collection.add(
+            documents=[content],
+            metadatas=[standard_metadata],
+            ids=[bridge_id]
+        )
+        
+        logger.info(
+            "bridge_document_created",
+            bridge_id=bridge_id,
+            bridge_type=bridge_type,
+            metadata_keys=list(standard_metadata.keys())
+        )
+        
+        return bridge_id

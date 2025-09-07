@@ -89,3 +89,22 @@ htmlcov/
 # Temporary/WIP scripts
 scripts/*_working.sh
 scripts/*_fixed.sh
+
+# Analysis and scratch work
+analysis-scratch/
+test-scratch/
+
+# Conversation exports and temporary files
+*-caveat-*.txt
+*-this-session-*.txt
+*-meta-test-*.html
+*floatast.json
+*.csv
+*.html
+!docs/**/*.html
+!examples/**/*.html
+
+# Analysis output files
+*conversation_analysis*
+*mcp_conversation_bridge*
+*analysis_helpers*
