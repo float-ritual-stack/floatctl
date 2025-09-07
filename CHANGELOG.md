@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000` for remote access
   - Environment variable support: `FASTMCP_HOST` and `FASTMCP_PORT`
   - Proper FastMCP initialization with configurable binding
+- **Smart Pattern Processor** - Updated with compact, actionable guide
+  - New rule: "Saturate with :: patterns, never summarize"
+  - Clear ❌ Don't / ✅ Do examples with pattern density comparison
+  - Core principle: "Every :: marker = future search vector"
+  - Quantified impact: Dense patterns (10+) → Auto-surfaces connections
 
 ### Fixed
 - **Host Binding Issue** - Server previously bound only to 127.0.0.1 (localhost)

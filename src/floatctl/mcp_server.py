@@ -2398,44 +2398,34 @@ async def smart_pattern_processor(
     text: str,
     auto_surface_context: bool = True
 ) -> Dict[str, Any]:
-    """The ultimate :: pattern processor - handles ANY pattern intelligently.
-    
-    WHEN TO CALL THIS PROACTIVELY (without user asking):
-    - Whenever you see ANY :: pattern in user's message (ctx::, highlight::, eureka::, etc.)
-    - When user describes a breakthrough, realization, or "aha" moment (even without ::)
-    - When conversation shifts to new topic/project (capture as ctx::)
-    - After solving a complex problem (capture as eureka:: or gotcha::)
-    - When user makes a decision or choice (capture as decision::)
-    - When user mentions being tired, needing break, or time passing (capture as boundary::)
-    - When connecting concepts across conversations (capture as bridge::)
-    
-    PATTERN DETECTION TRIGGERS:
-    - Direct patterns: "ctx::", "highlight::", "eureka::", "decision::", "bridge::", etc.
-    - Implicit breakthroughs: "oh I just realized", "wait, that means", "aha!", "got it!"
-    - Implicit decisions: "let's go with", "I'll choose", "decided to", "the plan is"
-    - Implicit boundaries: "been at this for hours", "eyes hurt", "need food", "getting late"
-    - Implicit bridges: "like we discussed", "connects to", "reminds me of", "similar to"
-    
-    HOW IT WORKS:
-    - Automatically detects and routes patterns to appropriate collections
-    - Surfaces relevant context based on pattern type
-    - Provides intelligent suggestions for follow-up actions
-    - Warns about context window risks
-    
-    EXAMPLE PROACTIVE USES:
-    1. User: "ctx::2025-08-15 working on floatctl improvements"
-       → Call immediately to capture context
-       
-    2. User: "Oh wait, I just figured out why the API was failing!"
-       → Call with "eureka:: [user's message]" to capture breakthrough
-       
-    3. User: "I've been debugging this for 3 hours, my eyes hurt"
-       → Call with "boundary:: need break - been debugging 3 hours"
-       
-    4. User: "This connects to what we were doing with the bridge walker yesterday"
-       → Call with "bridge::create connecting to bridge walker work"
-    
-    REMEMBER: Don't wait for explicit permission - capture valuable context as it emerges!
+    """▒▒ Smart Pattern Processor Guide (Compact)
+
+    **Rule: Saturate with `::` patterns, never summarize**
+
+    ### ❌ **Don't:**
+    ```
+    "ctx::meeting notes"  // Too thin
+    "work stuff today"    // No patterns
+    ```
+
+    ### ✅ **Do:**
+    ```
+    "ctx::2025-09-07 @ 10:36AM meeting::pharmacy_sync 
+    project::rangle/pharmacy pattern::PR_size_creep 
+    insight::82_percent_reduction problem::2000_line_PRs 
+    solution::size_gates mode::work_archaeology"
+    ```
+
+    **Pattern types:** `ctx::` `project::` `mode::` `bridge::` `ritual::` `insight::` `problem::` `solution::` `pattern::` `workflow::`
+
+    **Core principle:** Every `::` marker = future search vector. Density enables discovery.
+
+    **Impact:**
+    - Thin (3 patterns) → 0 related context found
+    - Dense (10+ patterns) → Auto-surfaces connections + metadata
+
+    >> Add MORE patterns, not fewer
+    >> The magic is in the metadata mesh
     """
     track_usage("smart_pattern", text[:50])
     
