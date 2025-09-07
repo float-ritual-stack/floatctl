@@ -31,22 +31,46 @@ uv run pytest tests/test_specific.py::TestClass::test_method -v
 uv run floatctl mcp serve
 ```
 
-## 🔧 MCP Server Refactoring (In Progress)
+## 🔧 MCP Server Refactoring (✅ COMPLETED v0.9.0)
 
-### Current State
-The MCP server (`src/floatctl/mcp_server.py`) is being refactored from a monolithic 3,366-line file into modular components for better maintainability.
+### Refactoring Results
+Successfully refactored MCP server from monolithic 3,366-line file into modular components:
 
-### Target Architecture
+**Final Architecture:**
 ```
 src/floatctl/mcp/
 ├── __init__.py              # Package initialization
-├── patterns.py              # Pattern processing (✅ Phase 1 complete)
-├── chroma_tools.py          # ChromaDB operations (✅ Phase 2 complete)
-├── context_tools.py         # Context management tools (✅ Phase 3 complete)
-├── utils.py                 # Utility functions (✅ Phase 4 complete)
-├── resources.py             # MCP resources & prompts (✅ Phase 5 complete - 529 lines)
-└── core.py                  # Core MCP server setup (Phase 6)
+├── patterns.py              # Pattern processing (273 lines)
+├── chroma_tools.py          # ChromaDB operations (839 lines)
+├── context_tools.py         # Context management tools (897 lines)
+├── utils.py                 # Utility functions (268 lines)
+├── resources.py             # MCP resources & prompts (529 lines)
+└── mcp_server.py            # Core server (384 lines - 88% reduction)
 ```
+
+**Metrics:**
+- **Lines extracted:** ~2,800 lines across 5 modules
+- **Core server reduction:** 3,366 → 384 lines (88% reduction)
+- **Maintainability:** Single responsibility modules with clear interfaces
+- **Functionality:** All MCP tools, resources, and prompts preserved
+
+### MCP Server Usage
+
+**For Claude Desktop (stdio):**
+```bash
+uv run floatctl mcp serve
+```
+
+**For HTTP/Remote Access:**
+```bash
+# Use CLI interface for HTTP/remote (recommended)
+uv run floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000
+
+# Or streamable-http transport
+uv run floatctl mcp serve --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+**Note:** Direct file execution (`python src/floatctl/mcp_server.py`) has import path limitations. Always use the CLI interface for HTTP/remote access.
 
 ### Refactoring Phases
 1. **Phase 1: Pattern Processing** ✅ Complete - 273 lines extracted
