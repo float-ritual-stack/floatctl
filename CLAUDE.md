@@ -31,6 +31,64 @@ uv run pytest tests/test_specific.py::TestClass::test_method -v
 uv run floatctl mcp serve
 ```
 
+## 🔧 MCP Server Refactoring (In Progress)
+
+### Current State
+The MCP server (`src/floatctl/mcp_server.py`) is being refactored from a monolithic 3,366-line file into modular components for better maintainability.
+
+### Target Architecture
+```
+src/floatctl/mcp/
+├── __init__.py              # Package initialization
+├── patterns.py              # Pattern processing (✅ Phase 1 complete)
+├── chroma_tools.py          # ChromaDB operations (Phase 2)
+├── context_tools.py         # Context management tools (Phase 3)
+├── utils.py                 # Utility functions (Phase 4)
+├── resources.py             # MCP resources & prompts (Phase 5)
+└── core.py                  # Core MCP server setup (Phase 6)
+```
+
+### Refactoring Phases
+1. **Phase 1: Pattern Processing** ✅ Complete - 273 lines extracted
+   - `parse_any_pattern()`, `parse_ctx_metadata()`, `get_hybrid_extractor()`
+   - `PATTERN_ROUTING` configuration
+   - Commit: 04f99ea (revert point)
+
+2. **Phase 2: ChromaDB Operations** (Pending)
+   - All `chroma_*` tool functions (~800-1000 lines)
+   - `get_chroma_client()` and helpers
+
+3. **Phase 3: Context Tools** (Pending)
+   - `process_context_marker()`, `query_recent_context()`
+   - `get_morning_context()`, `surface_recent_context()`
+
+4. **Phase 4: Utilities** (Pending)
+   - JSON serialization helpers
+   - Metadata processing utilities
+   - Common validation functions
+
+5. **Phase 5: Resources & Prompts** (Pending)
+   - MCP resource definitions
+   - Prompt templates
+   - Resource handlers
+
+6. **Phase 6: Final Cleanup** (Pending)
+   - Remove dead code
+   - Organize imports
+   - Final structure optimization
+
+### Important Notes for Future Sessions
+- **Each phase has a commit revert point** - Safe to rollback if issues
+- **Always test after extraction** - Run `uv run floatctl mcp serve` 
+- **Update CLAUDE.md at each phase** - Track progress and changes
+- **File line counts**: Started at 3,366 → Currently 3,093 → Target ~500-800
+
+### If Context Crunch Occurs
+1. Check current file size: `wc -l src/floatctl/mcp_server.py`
+2. Review last commit: `git log -1 --oneline`
+3. Check which phase: Look for existing `src/floatctl/mcp/*.py` files
+4. Continue from next pending phase in list above
+
 ## Architecture Overview
 
 ### Plugin System (Core Innovation)
@@ -116,6 +174,15 @@ class MyPlugin(PluginBase):
 - **Integration tests**: MCP server endpoint testing
 - **Pattern tests**: Consciousness pattern extraction validation
 - **Use markers**: `@pytest.mark.slow`, `@pytest.mark.integration`
+
+### MCP Server Development
+
+- **Check refactoring status first** - Use `wc -l src/floatctl/mcp_server.py` and `ls src/floatctl/mcp/`
+- **Each extracted module maintains original functionality** - No behavior changes during refactoring
+- **Test with `uv run floatctl mcp serve`** after any changes to MCP components
+- **Update CLAUDE.md when completing refactoring phases** - Track progress and file locations
+- **Use commit revert points** - Each phase has a safe rollback commit
+- **Import structure**: New modules import from `floatctl.mcp.*`, main server imports from modules
 
 ### Common Development Tasks
 
@@ -258,7 +325,13 @@ Evna is the MCP (Model Context Protocol) server component that provides Claude D
 - Python serves Claude, not the other way around
 
 ### File Locations
-- **MCP Server Implementation**: `src/floatctl/mcp_server.py` (lines 1400-2200)
+- **MCP Server Core**: `src/floatctl/mcp_server.py` (being refactored - currently ~3,093 lines)
+- **MCP Modules**: `src/floatctl/mcp/` (new modular structure)
+  - `patterns.py` - Pattern processing (✅ extracted)
+  - `chroma_tools.py` - ChromaDB operations (pending)
+  - `context_tools.py` - Context management (pending)
+  - `utils.py` - Utilities (pending)
+  - `resources.py` - Resources & prompts (pending)
 - **ChromaDB Wrapper**: `src/floatctl/core/chroma.py`
 - **MCP Config**: `~/.config/Claude/claude_desktop_config.json`
 - **Debug Logs**: `~/.floatctl/logs/mcp_server_debug.jsonl` (when FLOATCTL_MCP_DEBUG=true)
