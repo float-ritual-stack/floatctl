@@ -43,7 +43,7 @@ src/floatctl/mcp/
 ├── patterns.py              # Pattern processing (✅ Phase 1 complete)
 ├── chroma_tools.py          # ChromaDB operations (✅ Phase 2 complete)
 ├── context_tools.py         # Context management tools (✅ Phase 3 complete)
-├── utils.py                 # Utility functions (Phase 4)
+├── utils.py                 # Utility functions (✅ Phase 4 complete)
 ├── resources.py             # MCP resources & prompts (Phase 5)
 └── core.py                  # Core MCP server setup (Phase 6)
 ```
@@ -64,9 +64,11 @@ src/floatctl/mcp/
    - `get_morning_context()`, `surface_recent_context()`
    - `search_context()`, `smart_pattern_processor()`, `get_recent_context_resource()`
 
-4. **Phase 4: Utilities** (Pending)
-   - JSON serialization helpers
-   - Metadata processing utilities
+4. **Phase 4: Utilities** ✅ Complete - 267 lines extracted
+   - `get_chroma_client()`, `track_usage()`, `estimate_token_count()`
+   - `check_context_window_risk()`, `sanitize_metadata_for_chroma()`
+   - `parse_boundary_duration()`, `generate_context_id()`, `search_prompts()`
+   - `find_related_bridges()`, `debug_log()`, `detect_boundary_need()`
    - Common validation functions
 
 5. **Phase 5: Resources & Prompts** (Pending)

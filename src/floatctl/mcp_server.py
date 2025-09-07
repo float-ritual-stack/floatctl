@@ -148,6 +148,21 @@ from floatctl.mcp.context_tools import (
     get_recent_context_resource
 )
 
+# Import utility functions from new modular structure
+from floatctl.mcp.utils import (
+    get_chroma_client,
+    track_usage,
+    estimate_token_count,
+    check_context_window_risk,
+    sanitize_metadata_for_chroma,
+    parse_boundary_duration,
+    generate_context_id,
+    search_prompts,
+    find_related_bridges,
+    debug_log,
+    detect_boundary_need
+)
+
 # Try to import ollama, but don't fail if not available
 try:
     import ollama
