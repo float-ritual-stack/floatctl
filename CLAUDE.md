@@ -42,7 +42,7 @@ src/floatctl/mcp/
 ├── __init__.py              # Package initialization
 ├── patterns.py              # Pattern processing (✅ Phase 1 complete)
 ├── chroma_tools.py          # ChromaDB operations (✅ Phase 2 complete)
-├── context_tools.py         # Context management tools (Phase 3)
+├── context_tools.py         # Context management tools (✅ Phase 3 complete)
 ├── utils.py                 # Utility functions (Phase 4)
 ├── resources.py             # MCP resources & prompts (Phase 5)
 └── core.py                  # Core MCP server setup (Phase 6)
@@ -59,9 +59,10 @@ src/floatctl/mcp/
    - ChromaDB utilities (get_chroma_client, track_usage, sanitize_metadata)
    - Commit: 4525ee8 (revert point)
 
-3. **Phase 3: Context Tools** (Pending)
-   - `process_context_marker()`, `query_recent_context()`
+3. **Phase 3: Context Tools** ✅ Complete - 897 lines extracted
+   - `process_context_marker()`, `query_recent_context()` 
    - `get_morning_context()`, `surface_recent_context()`
+   - `search_context()`, `smart_pattern_processor()`, `get_recent_context_resource()`
 
 4. **Phase 4: Utilities** (Pending)
    - JSON serialization helpers

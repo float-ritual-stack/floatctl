@@ -137,6 +137,17 @@ from floatctl.mcp.chroma_tools import (
     chroma_peek_collection
 )
 
+# Import context management tools from new modular structure
+from floatctl.mcp.context_tools import (
+    process_context_marker,
+    get_morning_context,
+    query_recent_context,
+    search_context,
+    surface_recent_context,
+    smart_pattern_processor,
+    get_recent_context_resource
+)
+
 # Try to import ollama, but don't fail if not available
 try:
     import ollama
@@ -242,6 +253,17 @@ mcp.tool()(chroma_get_documents)
 mcp.tool()(chroma_update_documents)
 mcp.tool()(chroma_delete_documents)
 mcp.tool()(chroma_peek_collection)
+
+# Context management tools
+mcp.tool()(process_context_marker)
+mcp.tool()(get_morning_context)
+mcp.tool()(query_recent_context)
+mcp.tool()(search_context)
+mcp.tool()(surface_recent_context)
+mcp.tool()(smart_pattern_processor)
+
+# Context resources
+mcp.resource("context://active/recent")(get_recent_context_resource)
 
 
 # === CHROMADB COLLECTION OPERATIONS (TO BE REMOVED) ===
