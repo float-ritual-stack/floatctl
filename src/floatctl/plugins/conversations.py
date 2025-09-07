@@ -408,6 +408,259 @@ class ConversationsPlugin(PluginBase):
                 self._export_json_analysis(analysis, output)
             
             console.print(f"[green]Analysis exported to {output}[/green]")
+        
+        @conversations.command()
+        @click.option(
+            "--input", "-i",
+            type=click.Path(exists=True),
+            required=True,
+            help="Path to conversations.json file or processed conversation directory",
+        )
+        @click.option(
+            "--output", "-o",
+            type=click.Path(),
+            help="Output CSV file path (default: time-tracking-YYYYMMDD.csv)",
+        )
+        @click.option(
+            "--project-filter",
+            help="Filter by specific project pattern (e.g., 'rangle/pharmacy')",
+        )
+        @click.pass_context
+        def extract_time_tracking(
+            ctx: click.Context, 
+            input: Path, 
+            output: Optional[Path],
+            project_filter: Optional[str]
+        ) -> None:
+            """Extract time tracking information from project markers."""
+            input_path = Path(input)
+            
+            # Set default output path
+            if output is None:
+                timestamp = datetime.now().strftime("%Y%m%d")
+                output = Path(f"time-tracking-{timestamp}.csv")
+            else:
+                output = Path(output)
+            
+            console.print(f"[cyan]Extracting time tracking data from {input_path}...[/cyan]")
+            
+            # Extract time tracking entries
+            entries = self._extract_time_tracking_entries(input_path, project_filter)
+            
+            if not entries:
+                console.print("[yellow]No time tracking entries found[/yellow]")
+                return
+            
+            # Save to CSV
+            self._save_time_tracking_csv(entries, output)
+            
+            # Display results
+            console.print(f"[green]✓ Extracted {len(entries)} time tracking entries[/green]")
+            console.print(f"[green]✓ Saved to {output}[/green]")
+            
+            # Show summary
+            self._display_time_tracking_summary(entries)
+        
+        @conversations.command()
+        @click.option(
+            "--input", "-i",
+            type=click.Path(exists=True),
+            required=True,
+            help="Path to conversations.json file or processed conversation directory",
+        )
+        @click.option(
+            "--output", "-o",
+            type=click.Path(),
+            help="Output CSV file (default: ./links-{timestamp}.csv)",
+        )
+        @click.option(
+            "--type-filter",
+            type=click.Choice(["github", "youtube", "claude", "docs", "all"]),
+            default="all",
+            help="Filter by link type",
+        )
+        @click.pass_context
+        def extract_links(ctx: click.Context, input: Path, output: Optional[Path], type_filter: str) -> None:
+            """Extract links and references from conversations."""
+            input_path = Path(input)
+            
+            if not output:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output = Path(f"./links-{timestamp}.csv")
+            else:
+                output = Path(output)
+            
+            console.print(f"[cyan]Extracting links from {input_path}...[/cyan]")
+            
+            # Extract links
+            links = self._extract_links_from_conversations(input_path, type_filter)
+            
+            if not links:
+                console.print("[yellow]No links found matching criteria[/yellow]")
+                return
+            
+            # Save to CSV
+            self._save_links_csv(links, output)
+            
+            # Display summary
+            self._display_link_summary(links, output)
+        
+        @conversations.command()
+        @click.option(
+            "--input", "-i",
+            type=click.Path(exists=True),
+            required=True,
+            help="Path to conversations.json file or processed conversation directory",
+        )
+        @click.option(
+            "--output", "-o",
+            type=click.Path(),
+            help="Output JSON file (default: ./floatast-{timestamp}.json)",
+        )
+        @click.option(
+            "--conversation-id",
+            help="Extract outline for specific conversation ID only",
+        )
+        @click.option(
+            "--include-patterns/--no-patterns",
+            default=True,
+            help="Include FLOAT pattern analysis in outline",
+        )
+        @click.pass_context
+        def floatast_outline(ctx: click.Context, input: Path, output: Optional[Path], conversation_id: Optional[str], include_patterns: bool) -> None:
+            """Generate FloatAST outline representation of conversations."""
+            input_path = Path(input)
+            
+            if not output:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output = Path(f"./floatast-{timestamp}.json")
+            else:
+                output = Path(output)
+            
+            console.print(f"[cyan]Generating FloatAST outline from {input_path}...[/cyan]")
+            
+            # Generate outlines
+            outlines = self._generate_floatast_outlines(input_path, conversation_id, include_patterns)
+            
+            if not outlines:
+                console.print("[yellow]No conversations found or processed[/yellow]")
+                return
+            
+            # Save outlines
+            self._save_floatast_outlines(outlines, output)
+            
+            # Display summary
+            self._display_floatast_summary(outlines, output)
+        
+        @conversations.command()
+        @click.option(
+            "--input", "-i",
+            type=click.Path(exists=True),
+            required=True,
+            help="Path to conversations.json file or ZIP containing conversations",
+        )
+        @click.option(
+            "--output", "-o",
+            type=click.Path(),
+            help="Output directory (default: ./full-extract-{timestamp})",
+        )
+        @click.pass_context
+        def full_extract(ctx: click.Context, input: Path, output: Optional[Path]) -> None:
+            """Complete extraction suite: artifacts, links, time tracking, and FloatAST outlines."""
+            input_path = Path(input)
+            
+            if not output:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output = Path(f"./full-extract-{timestamp}")
+            else:
+                output = Path(output)
+            
+            # Create output directory
+            output.mkdir(parents=True, exist_ok=True)
+            
+            console.print(f"[cyan]🚀 Full extraction starting...[/cyan]")
+            console.print(f"[cyan]Input: {input_path}[/cyan]")
+            console.print(f"[cyan]Output: {output}[/cyan]\n")
+            
+            # Handle ZIP files by extracting them first
+            working_input = self._prepare_input(input_path, output)
+            
+            if not working_input:
+                console.print("[red]Failed to prepare input[/red]")
+                return
+            
+            # Run all extraction commands
+            extractions_completed = 0
+            
+            # 1. Extract artifacts
+            console.print("[yellow]📦 Extracting artifacts...[/yellow]")
+            try:
+                artifacts_output = output / "artifacts"
+                artifacts_output.mkdir(exist_ok=True)
+                artifacts = self._extract_artifacts_from_conversations(working_input)
+                if artifacts:
+                    saved_artifacts = self._save_artifacts(artifacts, artifacts_output)
+                    console.print(f"[green]✓ Found {len(artifacts)} artifacts, saved {len(saved_artifacts)}[/green]")
+                    extractions_completed += 1
+                else:
+                    console.print("[yellow]No artifacts found[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Error extracting artifacts: {e}[/red]")
+            
+            # 2. Extract time tracking
+            console.print("\n[yellow]⏰ Extracting time tracking data...[/yellow]")
+            try:
+                time_tracking_entries = self._extract_time_tracking_entries(working_input, None)
+                if time_tracking_entries:
+                    time_csv = output / "time-tracking.csv"
+                    self._save_time_tracking_csv(time_tracking_entries, time_csv)
+                    console.print(f"[green]✓ Found {len(time_tracking_entries)} time tracking entries[/green]")
+                    extractions_completed += 1
+                else:
+                    console.print("[yellow]No time tracking entries found[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Error extracting time tracking: {e}[/red]")
+            
+            # 3. Extract links
+            console.print("\n[yellow]🔗 Extracting links...[/yellow]")
+            try:
+                links = self._extract_links_from_conversations(working_input, "all")
+                if links:
+                    links_csv = output / "links.csv"
+                    self._save_links_csv(links, links_csv)
+                    console.print(f"[green]✓ Found {len(links)} links[/green]")
+                    extractions_completed += 1
+                else:
+                    console.print("[yellow]No links found[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Error extracting links: {e}[/red]")
+            
+            # 4. Generate FloatAST outlines
+            console.print("\n[yellow]🧠 Generating FloatAST outlines...[/yellow]")
+            try:
+                outlines = self._generate_floatast_outlines(working_input, None, True)
+                if outlines:
+                    floatast_json = output / "floatast-outlines.json"
+                    self._save_floatast_outlines(outlines, floatast_json)
+                    console.print(f"[green]✓ Generated {len(outlines)} conversation outlines[/green]")
+                    extractions_completed += 1
+                else:
+                    console.print("[yellow]No conversations to outline[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Error generating FloatAST outlines: {e}[/red]")
+            
+            # Generate summary report
+            console.print("\n[yellow]📋 Generating summary report...[/yellow]")
+            try:
+                self._generate_extraction_report(output, working_input, extractions_completed)
+                console.print("[green]✓ Generated extraction report[/green]")
+            except Exception as e:
+                console.print(f"[red]Error generating report: {e}[/red]")
+            
+            # Final summary
+            console.print(f"\n[cyan]🎉 Full extraction complete![/cyan]")
+            console.print(f"[cyan]Completed {extractions_completed}/4 extraction types[/cyan]")
+            console.print(f"[cyan]Output saved to: {output}[/cyan]")
     
     def _calculate_file_hash(self, file_path: Path) -> str:
         """Calculate SHA256 hash of a file."""
@@ -1422,3 +1675,1157 @@ The enhanced tool call extraction reveals **consciousness technology in operatio
                 )
             
             console.print(table)
+    
+    def _extract_time_tracking_entries(self, input_path: Path, project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Extract time tracking entries from conversations."""
+        entries = []
+        
+        if input_path.is_file() and input_path.suffix == '.json':
+            # Process conversations.json directly
+            entries = self._extract_from_conversations_json(input_path, project_filter)
+        elif input_path.is_dir():
+            # Process directory of processed conversation files
+            entries = self._extract_from_processed_conversations(input_path, project_filter)
+        
+        # Sort by date/time
+        entries.sort(key=lambda x: x.get('timestamp', ''))
+        
+        return entries
+    
+    def _extract_from_conversations_json(self, json_path: Path, project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Extract from conversations.json file."""
+        entries = []
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                conversations = json.load(f)
+            
+            for conv in conversations:
+                conv_entries = self._extract_project_patterns_from_conversation(conv, project_filter)
+                entries.extend(conv_entries)
+                
+        except Exception as e:
+            console.print(f"[red]Error reading {json_path}: {e}[/red]")
+        
+        return entries
+    
+    def _extract_from_processed_conversations(self, dir_path: Path, project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Extract from processed markdown conversation files."""
+        entries = []
+        
+        # Look for markdown files
+        md_files = list(dir_path.glob("**/*.md"))
+        
+        for md_file in md_files:
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                file_entries = self._extract_project_patterns_from_markdown(content, md_file, project_filter)
+                entries.extend(file_entries)
+                
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not process {md_file}: {e}[/yellow]")
+        
+        return entries
+    
+    def _extract_project_patterns_from_conversation(self, conversation: Dict[str, Any], project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Extract project patterns from a single conversation JSON."""
+        entries = []
+        
+        conv_id = conversation.get('uuid', 'unknown')
+        conv_name = conversation.get('name', 'Untitled')
+        conv_created = conversation.get('created_at', '')
+        
+        for msg_idx, message in enumerate(conversation.get('chat_messages', [])):
+            msg_time = message.get('created_at', '')
+            sender = message.get('sender', '')
+            
+            # Look in message text and content items
+            text_content = message.get('text', '')
+            for content in message.get('content', []):
+                if content.get('type') == 'text':
+                    text_content += '\n' + content.get('text', '')
+            
+            # Find project patterns
+            project_matches = self._find_project_patterns(text_content, project_filter)
+            
+            for match in project_matches:
+                # Extract context around the match
+                context = self._extract_context_around_pattern(text_content, match)
+                
+                entry = {
+                    'timestamp': msg_time,
+                    'date': msg_time[:10] if msg_time else '',
+                    'time': msg_time[11:19] if len(msg_time) > 19 else '',
+                    'project': match['project'],
+                    'pattern': match['pattern'],
+                    'context': context,
+                    'description': match.get('description', ''),
+                    'conversation_id': conv_id,
+                    'conversation_name': conv_name,
+                    'conversation_created': conv_created,
+                    'message_index': msg_idx,
+                    'sender': sender,
+                    'source': 'json'
+                }
+                entries.append(entry)
+        
+        return entries
+    
+    def _extract_project_patterns_from_markdown(self, content: str, file_path: Path, project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Extract project patterns from processed markdown file."""
+        entries = []
+        
+        lines = content.split('\n')
+        
+        # Extract metadata from YAML frontmatter
+        metadata = {}
+        if content.startswith('---'):
+            yaml_end = content.find('---', 3)
+            if yaml_end != -1:
+                try:
+                    import yaml
+                    yaml_content = content[3:yaml_end]
+                    metadata = yaml.safe_load(yaml_content) or {}
+                except:
+                    pass
+        
+        conv_id = metadata.get('conversation_id', 'unknown')
+        conv_name = metadata.get('conversation_title', file_path.stem)
+        conv_created = metadata.get('conversation_created', '')
+        
+        # Find project patterns in content
+        project_matches = self._find_project_patterns(content, project_filter)
+        
+        for match in project_matches:
+            # Find which line the pattern is on
+            line_num = self._find_line_number(content, match['pattern'])
+            
+            # Extract context around the pattern
+            context = self._extract_context_around_pattern(content, match)
+            
+            entry = {
+                'timestamp': conv_created,
+                'date': conv_created[:10] if conv_created else '',
+                'time': conv_created[11:19] if len(conv_created) > 19 else '',
+                'project': match['project'],
+                'pattern': match['pattern'],
+                'context': context,
+                'description': match.get('description', ''),
+                'conversation_id': conv_id,
+                'conversation_name': conv_name,
+                'conversation_created': conv_created,
+                'line_number': line_num,
+                'file_path': str(file_path),
+                'source': 'markdown'
+            }
+            entries.append(entry)
+        
+        return entries
+    
+    def _find_project_patterns(self, text: str, project_filter: Optional[str]) -> List[Dict[str, Any]]:
+        """Find project patterns like [project::rangle/pharmacy] in text."""
+        import re
+        
+        # Pattern to match [project::something]
+        pattern = r'\[project::([^\]]+)\]'
+        matches = []
+        
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            project_value = match.group(1).strip()
+            
+            # Apply filter if specified
+            if project_filter and project_filter.lower() not in project_value.lower():
+                continue
+            
+            # Extract description (look for content after the pattern)
+            start_pos = match.end()
+            context_text = text[start_pos:start_pos + 200]  # Next 200 chars
+            
+            # Clean up the description 
+            description = context_text.split('\n')[0].strip()  # First line after pattern
+            if description.startswith('*') or description.startswith('-'):
+                description = description[1:].strip()
+            
+            matches.append({
+                'project': project_value,
+                'pattern': match.group(0),
+                'description': description,
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
+        
+        return matches
+    
+    def _extract_context_around_pattern(self, text: str, match: Dict[str, Any]) -> str:
+        """Extract context around a pattern match."""
+        start_pos = match.get('start_pos', 0)
+        
+        # Get context before and after (about 500 chars each direction)
+        context_start = max(0, start_pos - 500)
+        context_end = min(len(text), start_pos + 500)
+        
+        context = text[context_start:context_end]
+        
+        # Clean up the context - remove excessive whitespace
+        lines = context.split('\n')
+        cleaned_lines = [line.strip() for line in lines if line.strip()]
+        context = ' '.join(cleaned_lines)
+        
+        return context[:800]  # Limit to 800 chars
+    
+    def _find_line_number(self, text: str, pattern: str) -> int:
+        """Find the line number where a pattern appears."""
+        lines = text.split('\n')
+        for i, line in enumerate(lines, 1):
+            if pattern in line:
+                return i
+        return 0
+    
+    def _save_time_tracking_csv(self, entries: List[Dict[str, Any]], output_path: Path) -> None:
+        """Save time tracking entries to CSV."""
+        import csv
+        
+        if not entries:
+            return
+        
+        # Define CSV columns
+        columns = [
+            'date', 'time', 'project', 'description', 'context',
+            'conversation_name', 'conversation_id', 'source'
+        ]
+        
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+            
+            for entry in entries:
+                row = {col: entry.get(col, '') for col in columns}
+                writer.writerow(row)
+    
+    def _display_time_tracking_summary(self, entries: List[Dict[str, Any]]) -> None:
+        """Display summary of time tracking entries."""
+        if not entries:
+            return
+        
+        # Group by project
+        from collections import defaultdict
+        by_project = defaultdict(list)
+        for entry in entries:
+            by_project[entry['project']].append(entry)
+        
+        # Display summary table
+        table = Table(title="Time Tracking Summary")
+        table.add_column("Project", style="cyan")
+        table.add_column("Entries", style="yellow")
+        table.add_column("Date Range", style="green")
+        table.add_column("Latest Entry", style="blue")
+        
+        for project, project_entries in sorted(by_project.items()):
+            dates = [e['date'] for e in project_entries if e['date']]
+            date_range = f"{min(dates)} to {max(dates)}" if dates else "Unknown"
+            
+            # Show latest entry context (shortened)
+            latest = max(project_entries, key=lambda x: x.get('timestamp', ''))
+            latest_desc = latest['description'][:50] + "..." if len(latest['description']) > 50 else latest['description']
+            
+            table.add_row(
+                project,
+                str(len(project_entries)),
+                date_range,
+                latest_desc
+            )
+        
+        console.print(table)
+    
+    def _extract_links_from_conversations(self, input_path: Path, type_filter: str) -> List[Dict[str, Any]]:
+        """Extract links from conversations."""
+        links = []
+        
+        if input_path.is_file() and input_path.suffix == '.json':
+            # Process conversations.json directly
+            links = self._extract_links_from_json(input_path, type_filter)
+        elif input_path.is_dir():
+            # Process directory of processed conversation files
+            links = self._extract_links_from_processed_conversations_dir(input_path, type_filter)
+        
+        # Sort by conversation and then by order found
+        links.sort(key=lambda x: (x.get('conversation_name', ''), x.get('position', 0)))
+        
+        return links
+    
+    def _extract_links_from_json(self, json_path: Path, type_filter: str) -> List[Dict[str, Any]]:
+        """Extract links from conversations.json file."""
+        links = []
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                conversations = json.load(f)
+            
+            for conv in conversations:
+                conv_links = self._extract_links_from_conversation(conv, type_filter)
+                links.extend(conv_links)
+                
+        except Exception as e:
+            console.print(f"[red]Error reading {json_path}: {e}[/red]")
+        
+        return links
+    
+    def _extract_links_from_processed_conversations_dir(self, dir_path: Path, type_filter: str) -> List[Dict[str, Any]]:
+        """Extract links from processed conversation directory."""
+        links = []
+        
+        # Process markdown files
+        for md_file in dir_path.glob("*.md"):
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                file_links = self._extract_links_from_markdown(content, md_file.stem, type_filter)
+                links.extend(file_links)
+                
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not process {md_file}: {e}[/yellow]")
+        
+        return links
+    
+    def _extract_links_from_conversation(self, conversation: Dict[str, Any], type_filter: str) -> List[Dict[str, Any]]:
+        """Extract links from a single conversation JSON."""
+        links = []
+        
+        conv_id = conversation.get('uuid', 'unknown')
+        conv_name = conversation.get('name', 'Untitled')
+        conv_created = conversation.get('created_at', '')
+        
+        position = 0
+        for msg_idx, message in enumerate(conversation.get('chat_messages', [])):
+            for content_idx, content in enumerate(message.get('content', [])):
+                text = content.get('text', '')
+                if text:
+                    found_links = self._find_links_in_text(text, type_filter)
+                    for link in found_links:
+                        links.append({
+                            'conversation_id': conv_id,
+                            'conversation_name': conv_name,
+                            'conversation_created': conv_created,
+                            'message_index': msg_idx,
+                            'content_index': content_idx,
+                            'position': position,
+                            'url': link['url'],
+                            'type': link['type'],
+                            'title': link.get('title', ''),
+                            'context': link.get('context', ''),
+                            'sender': message.get('sender', ''),
+                            'created_at': message.get('created_at', '')
+                        })
+                        position += 1
+        
+        return links
+    
+    def _extract_links_from_markdown(self, content: str, filename: str, type_filter: str) -> List[Dict[str, Any]]:
+        """Extract links from processed markdown conversation."""
+        links = []
+        
+        lines = content.split('\n')
+        position = 0
+        
+        for line_num, line in enumerate(lines, 1):
+            found_links = self._find_links_in_text(line, type_filter)
+            for link in found_links:
+                links.append({
+                    'conversation_id': filename,
+                    'conversation_name': filename,
+                    'conversation_created': '',
+                    'line_number': line_num,
+                    'position': position,
+                    'url': link['url'],
+                    'type': link['type'],
+                    'title': link.get('title', ''),
+                    'context': link.get('context', ''),
+                    'sender': 'processed',
+                    'created_at': ''
+                })
+                position += 1
+        
+        return links
+    
+    def _find_links_in_text(self, text: str, type_filter: str) -> List[Dict[str, Any]]:
+        """Find all links in text and categorize them."""
+        import re
+        links = []
+        
+        # Define link patterns
+        patterns = {
+            'github': [
+                r'https?://github\.com/[^\s\)\]]+',
+                r'https?://raw\.githubusercontent\.com/[^\s\)\]]+',
+            ],
+            'youtube': [
+                r'https?://(?:www\.)?youtube\.com/watch\?[^\s\)\]]*',
+                r'https?://youtu\.be/[^\s\)\]]+',
+            ],
+            'claude': [
+                r'https?://claude\.ai/chat/[^\s\)\]]+',
+            ],
+            'docs': [
+                r'https?://docs\.[^\s\)\]]+',
+                r'https?://[^\s\)\]]*\.readthedocs\.io[^\s\)\]]*',
+                r'https?://[^\s\)\]]*\.gitbook\.[^\s\)\]]*',
+                r'https?://[^\s\)\]]*notion\.[^\s\)\]]*',
+            ]
+        }
+        
+        # Add general URL pattern for 'all' filter
+        if type_filter == 'all':
+            patterns['general'] = [r'https?://[^\s\)\]]+']
+        
+        # Extract links based on filter
+        if type_filter == 'all':
+            search_patterns = []
+            for pattern_list in patterns.values():
+                search_patterns.extend(pattern_list)
+        else:
+            search_patterns = patterns.get(type_filter, [])
+        
+        for pattern in search_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                url = match.group(0)
+                link_type = self._classify_url(url)
+                
+                # Skip if this link type doesn't match our filter
+                if type_filter != 'all' and link_type != type_filter:
+                    continue
+                
+                # Extract context (±50 chars around the link)
+                start = max(0, match.start() - 50)
+                end = min(len(text), match.end() + 50)
+                context = text[start:end].replace('\n', ' ').strip()
+                
+                # Try to extract title from markdown links
+                title = ''
+                markdown_pattern = r'\[([^\]]+)\]\(' + re.escape(url) + r'\)'
+                markdown_match = re.search(markdown_pattern, text)
+                if markdown_match:
+                    title = markdown_match.group(1)
+                
+                links.append({
+                    'url': url,
+                    'type': link_type,
+                    'title': title,
+                    'context': context
+                })
+        
+        return links
+    
+    def _classify_url(self, url: str) -> str:
+        """Classify URL by type."""
+        url_lower = url.lower()
+        
+        if 'github.com' in url_lower or 'githubusercontent.com' in url_lower:
+            return 'github'
+        elif 'youtube.com' in url_lower or 'youtu.be' in url_lower:
+            return 'youtube'
+        elif 'claude.ai' in url_lower:
+            return 'claude'
+        elif any(doc_indicator in url_lower for doc_indicator in ['docs.', 'readthedocs.io', 'gitbook.', 'notion.']):
+            return 'docs'
+        else:
+            return 'general'
+    
+    def _save_links_csv(self, links: List[Dict[str, Any]], output_path: Path) -> None:
+        """Save links to CSV file."""
+        import csv
+        
+        if not links:
+            return
+        
+        columns = [
+            'url', 'type', 'title', 'context', 'conversation_name', 'conversation_id',
+            'sender', 'created_at', 'position', 'message_index', 'content_index', 'line_number'
+        ]
+        
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+            
+            for link in links:
+                row = {col: link.get(col, '') for col in columns}
+                writer.writerow(row)
+    
+    def _display_link_summary(self, links: List[Dict[str, Any]], output_path: Path) -> None:
+        """Display summary of extracted links."""
+        console.print(f"[green]✓ Found {len(links)} links[/green]")
+        console.print(f"[green]✓ Saved to {output_path}[/green]\n")
+        
+        # Group by type
+        by_type = {}
+        for link in links:
+            link_type = link['type']
+            if link_type not in by_type:
+                by_type[link_type] = []
+            by_type[link_type].append(link)
+        
+        # Display summary table
+        table = Table(title="Link Summary")
+        table.add_column("Type", style="cyan")
+        table.add_column("Count", style="yellow")
+        table.add_column("Sample URLs", style="blue", max_width=60)
+        
+        for link_type, type_links in sorted(by_type.items()):
+            # Show up to 2 sample URLs
+            samples = []
+            for link in type_links[:2]:
+                url = link['url']
+                if len(url) > 50:
+                    url = url[:47] + "..."
+                samples.append(url)
+            
+            table.add_row(
+                link_type.title(),
+                str(len(type_links)),
+                "\n".join(samples) if samples else ""
+            )
+        
+        console.print(table)
+    
+    def _generate_floatast_outlines(self, input_path: Path, conversation_id: Optional[str], include_patterns: bool) -> List[Dict[str, Any]]:
+        """Generate FloatAST outlines for conversations."""
+        outlines = []
+        
+        if input_path.is_file() and input_path.suffix == '.json':
+            # Process conversations.json directly
+            outlines = self._generate_outlines_from_json(input_path, conversation_id, include_patterns)
+        elif input_path.is_dir():
+            # Process directory of processed conversation files
+            outlines = self._generate_outlines_from_processed_dir(input_path, conversation_id, include_patterns)
+        
+        return outlines
+    
+    def _generate_outlines_from_json(self, json_path: Path, conversation_id: Optional[str], include_patterns: bool) -> List[Dict[str, Any]]:
+        """Generate outlines from conversations.json file."""
+        outlines = []
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                conversations = json.load(f)
+            
+            for conv in conversations:
+                # Skip if filtering by ID and this doesn't match
+                if conversation_id and conv.get('uuid') != conversation_id:
+                    continue
+                
+                outline = self._generate_conversation_outline(conv, include_patterns)
+                outlines.append(outline)
+                
+        except Exception as e:
+            console.print(f"[red]Error reading {json_path}: {e}[/red]")
+        
+        return outlines
+    
+    def _generate_outlines_from_processed_dir(self, dir_path: Path, conversation_id: Optional[str], include_patterns: bool) -> List[Dict[str, Any]]:
+        """Generate outlines from processed conversation directory."""
+        outlines = []
+        
+        # Process markdown files
+        for md_file in dir_path.glob("*.md"):
+            # Skip if filtering by ID and this doesn't match
+            if conversation_id and md_file.stem != conversation_id:
+                continue
+                
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                outline = self._generate_markdown_outline(content, md_file.stem, include_patterns)
+                outlines.append(outline)
+                
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not process {md_file}: {e}[/yellow]")
+        
+        return outlines
+    
+    def _generate_conversation_outline(self, conversation: Dict[str, Any], include_patterns: bool) -> Dict[str, Any]:
+        """Generate FloatAST outline for a single conversation."""
+        conv_id = conversation.get('uuid', 'unknown')
+        conv_name = conversation.get('name', 'Untitled')
+        conv_created = conversation.get('created_at', '')
+        
+        outline = {
+            'conversation_id': conv_id,
+            'conversation_name': conv_name,
+            'created_at': conv_created,
+            'floatast_version': '1.0',
+            'generated_at': datetime.now().isoformat(),
+            'message_flow': [],
+            'patterns': {} if include_patterns else None,
+            'metadata': {
+                'total_messages': len(conversation.get('chat_messages', [])),
+                'participants': set(),
+                'has_artifacts': False,
+                'has_tool_calls': False,
+            }
+        }
+        
+        # Analyze messages
+        for msg_idx, message in enumerate(conversation.get('chat_messages', [])):
+            msg_outline = self._analyze_message(message, msg_idx, include_patterns)
+            outline['message_flow'].append(msg_outline)
+            
+            # Update metadata
+            sender = message.get('sender', 'unknown')
+            outline['metadata']['participants'].add(sender)
+            
+            if msg_outline.get('has_artifacts'):
+                outline['metadata']['has_artifacts'] = True
+            if msg_outline.get('has_tool_calls'):
+                outline['metadata']['has_tool_calls'] = True
+        
+        # Convert set to list for JSON serialization
+        outline['metadata']['participants'] = list(outline['metadata']['participants'])
+        
+        # Aggregate patterns if enabled
+        if include_patterns:
+            outline['patterns'] = self._aggregate_patterns(outline['message_flow'])
+        
+        return outline
+    
+    def _generate_markdown_outline(self, content: str, filename: str, include_patterns: bool) -> Dict[str, Any]:
+        """Generate FloatAST outline for processed markdown conversation."""
+        lines = content.split('\n')
+        
+        # Extract metadata from YAML frontmatter
+        metadata = self._extract_yaml_frontmatter(content)
+        
+        outline = {
+            'conversation_id': filename,
+            'conversation_name': metadata.get('title', filename),
+            'created_at': metadata.get('created', ''),
+            'floatast_version': '1.0',
+            'generated_at': datetime.now().isoformat(),
+            'message_flow': [],
+            'patterns': {} if include_patterns else None,
+            'metadata': {
+                'total_lines': len(lines),
+                'has_yaml_frontmatter': bool(metadata),
+                'processing_notes': 'Generated from processed markdown'
+            }
+        }
+        
+        # Analyze content structure
+        current_section = None
+        for line_num, line in enumerate(lines, 1):
+            if line.strip():
+                section_analysis = self._analyze_markdown_line(line, line_num, include_patterns)
+                if section_analysis:
+                    outline['message_flow'].append(section_analysis)
+        
+        # Aggregate patterns if enabled
+        if include_patterns:
+            outline['patterns'] = self._aggregate_markdown_patterns(content, lines)
+        
+        return outline
+    
+    def _analyze_message(self, message: Dict[str, Any], msg_idx: int, include_patterns: bool) -> Dict[str, Any]:
+        """Analyze a single message for FloatAST outline."""
+        msg_outline = {
+            'message_index': msg_idx,
+            'sender': message.get('sender', 'unknown'),
+            'created_at': message.get('created_at', ''),
+            'content_items': [],
+            'has_artifacts': False,
+            'has_tool_calls': False,
+            'patterns_found': [] if include_patterns else None
+        }
+        
+        for content_idx, content in enumerate(message.get('content', [])):
+            content_analysis = self._analyze_content_item(content, content_idx, include_patterns)
+            msg_outline['content_items'].append(content_analysis)
+            
+            if content_analysis['type'] == 'tool_use':
+                msg_outline['has_tool_calls'] = True
+                if content.get('name') == 'artifacts':
+                    msg_outline['has_artifacts'] = True
+            
+            if include_patterns and content_analysis.get('patterns'):
+                msg_outline['patterns_found'].extend(content_analysis['patterns'])
+        
+        return msg_outline
+    
+    def _analyze_content_item(self, content: Dict[str, Any], content_idx: int, include_patterns: bool) -> Dict[str, Any]:
+        """Analyze a single content item."""
+        content_type = content.get('type', 'unknown')
+        
+        analysis = {
+            'content_index': content_idx,
+            'type': content_type,
+            'length': 0,
+            'summary': '',
+            'patterns': [] if include_patterns else None
+        }
+        
+        if content_type == 'text':
+            text = content.get('text', '')
+            analysis['length'] = len(text)
+            analysis['summary'] = self._summarize_text(text)
+            
+            if include_patterns:
+                analysis['patterns'] = self._extract_float_patterns(text)
+                
+        elif content_type == 'tool_use':
+            tool_name = content.get('name', '')
+            analysis['tool_name'] = tool_name
+            analysis['summary'] = f"Tool: {tool_name}"
+            
+        elif content_type == 'tool_result':
+            result_content = content.get('content', '')
+            analysis['length'] = len(str(result_content))
+            analysis['summary'] = "Tool result"
+            
+        return analysis
+    
+    def _analyze_markdown_line(self, line: str, line_num: int, include_patterns: bool) -> Optional[Dict[str, Any]]:
+        """Analyze a line from markdown conversation."""
+        stripped = line.strip()
+        if not stripped:
+            return None
+        
+        analysis = {
+            'line_number': line_num,
+            'type': 'text',
+            'content': stripped[:100] + '...' if len(stripped) > 100 else stripped,
+            'length': len(stripped),
+            'patterns': [] if include_patterns else None
+        }
+        
+        # Detect special line types
+        if stripped.startswith('#'):
+            analysis['type'] = 'heading'
+            analysis['level'] = len(stripped) - len(stripped.lstrip('#'))
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            analysis['type'] = 'list_item'
+        elif stripped.startswith('```'):
+            analysis['type'] = 'code_block_marker'
+        elif '::' in stripped:
+            analysis['type'] = 'float_pattern'
+        
+        if include_patterns:
+            analysis['patterns'] = self._extract_float_patterns(line)
+        
+        return analysis
+    
+    def _extract_yaml_frontmatter(self, content: str) -> Dict[str, Any]:
+        """Extract YAML frontmatter from markdown content."""
+        if not content.startswith('---'):
+            return {}
+        
+        try:
+            import yaml
+            parts = content.split('---', 2)
+            if len(parts) >= 2:
+                return yaml.safe_load(parts[1]) or {}
+        except:
+            pass
+        
+        return {}
+    
+    def _extract_float_patterns(self, text: str) -> List[Dict[str, Any]]:
+        """Extract FLOAT patterns from text."""
+        import re
+        patterns = []
+        
+        # Find :: patterns
+        pattern_matches = re.finditer(r'(\w+)::\s*([^\n\r]*)', text)
+        for match in pattern_matches:
+            pattern_type = match.group(1)
+            pattern_content = match.group(2).strip()
+            
+            patterns.append({
+                'type': pattern_type,
+                'content': pattern_content,
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
+        
+        # Find bracketed patterns [pattern:: content]
+        bracket_matches = re.finditer(r'\[(\w+)::\s*([^\]]*)\]', text)
+        for match in bracket_matches:
+            pattern_type = match.group(1)
+            pattern_content = match.group(2).strip()
+            
+            patterns.append({
+                'type': pattern_type,
+                'content': pattern_content,
+                'start_pos': match.start(),
+                'end_pos': match.end(),
+                'bracketed': True
+            })
+        
+        return patterns
+    
+    def _summarize_text(self, text: str, max_length: int = 100) -> str:
+        """Create a brief summary of text content."""
+        if len(text) <= max_length:
+            return text.strip()
+        
+        # Try to break at sentence boundaries
+        sentences = text.split('. ')
+        if sentences and len(sentences[0]) <= max_length:
+            return sentences[0] + '.'
+        
+        # Otherwise just truncate
+        return text[:max_length].strip() + '...'
+    
+    def _aggregate_patterns(self, message_flow: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Aggregate all patterns found in conversation."""
+        pattern_summary = {
+            'total_patterns': 0,
+            'pattern_types': {},
+            'timeline': []
+        }
+        
+        for msg in message_flow:
+            if msg.get('patterns_found'):
+                for pattern in msg['patterns_found']:
+                    pattern_type = pattern['type']
+                    
+                    # Count by type
+                    if pattern_type not in pattern_summary['pattern_types']:
+                        pattern_summary['pattern_types'][pattern_type] = 0
+                    pattern_summary['pattern_types'][pattern_type] += 1
+                    pattern_summary['total_patterns'] += 1
+                    
+                    # Add to timeline
+                    pattern_summary['timeline'].append({
+                        'message_index': msg['message_index'],
+                        'sender': msg['sender'],
+                        'pattern': pattern,
+                        'timestamp': msg.get('created_at', '')
+                    })
+        
+        return pattern_summary
+    
+    def _aggregate_markdown_patterns(self, content: str, lines: List[str]) -> Dict[str, Any]:
+        """Aggregate patterns from markdown content."""
+        all_patterns = self._extract_float_patterns(content)
+        
+        pattern_summary = {
+            'total_patterns': len(all_patterns),
+            'pattern_types': {},
+            'unique_patterns': []
+        }
+        
+        for pattern in all_patterns:
+            pattern_type = pattern['type']
+            if pattern_type not in pattern_summary['pattern_types']:
+                pattern_summary['pattern_types'][pattern_type] = 0
+                pattern_summary['unique_patterns'].append({
+                    'type': pattern_type,
+                    'sample_content': pattern['content']
+                })
+            pattern_summary['pattern_types'][pattern_type] += 1
+        
+        return pattern_summary
+    
+    def _save_floatast_outlines(self, outlines: List[Dict[str, Any]], output_path: Path) -> None:
+        """Save FloatAST outlines to JSON file."""
+        output_data = {
+            'floatast_collection': {
+                'version': '1.0',
+                'generated_at': datetime.now().isoformat(),
+                'total_conversations': len(outlines),
+                'conversations': outlines
+            }
+        }
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False, default=str)
+    
+    def _display_floatast_summary(self, outlines: List[Dict[str, Any]], output_path: Path) -> None:
+        """Display summary of generated FloatAST outlines."""
+        console.print(f"[green]✓ Generated {len(outlines)} FloatAST outlines[/green]")
+        console.print(f"[green]✓ Saved to {output_path}[/green]\n")
+        
+        if not outlines:
+            return
+        
+        # Summary table
+        table = Table(title="FloatAST Outline Summary")
+        table.add_column("Conversation", style="cyan", max_width=30)
+        table.add_column("Messages", style="yellow")
+        table.add_column("Patterns", style="green")
+        table.add_column("Features", style="blue")
+        
+        for outline in outlines[:10]:  # Show first 10
+            conv_name = outline['conversation_name']
+            if len(conv_name) > 27:
+                conv_name = conv_name[:24] + "..."
+            
+            msg_count = outline['metadata'].get('total_messages', len(outline.get('message_flow', [])))
+            
+            pattern_count = 0
+            if outline.get('patterns') and outline['patterns'].get('total_patterns'):
+                pattern_count = outline['patterns']['total_patterns']
+            
+            features = []
+            metadata = outline.get('metadata', {})
+            if metadata.get('has_artifacts'):
+                features.append("artifacts")
+            if metadata.get('has_tool_calls'):
+                features.append("tools")
+            if metadata.get('has_yaml_frontmatter'):
+                features.append("yaml")
+            
+            table.add_row(
+                conv_name,
+                str(msg_count),
+                str(pattern_count) if pattern_count else "none",
+                ", ".join(features) if features else "basic"
+            )
+        
+        console.print(table)
+        
+        if len(outlines) > 10:
+            console.print(f"... and {len(outlines) - 10} more conversations")
+    
+    def _prepare_input(self, input_path: Path, output_dir: Path) -> Optional[Path]:
+        """Prepare input for processing, extracting ZIP files if needed."""
+        if input_path.suffix.lower() == '.zip':
+            return self._extract_zip_file(input_path, output_dir)
+        elif input_path.is_file() and input_path.suffix == '.json':
+            return input_path
+        elif input_path.is_dir():
+            return input_path
+        else:
+            console.print(f"[red]Unsupported input format: {input_path}[/red]")
+            return None
+    
+    def _extract_zip_file(self, zip_path: Path, output_dir: Path) -> Optional[Path]:
+        """Extract ZIP file and return path to conversations.json."""
+        import zipfile
+        
+        try:
+            extract_dir = output_dir / "extracted"
+            extract_dir.mkdir(exist_ok=True)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # Look for conversations.json in extracted content
+            conversations_json = extract_dir / "conversations.json"
+            if conversations_json.exists():
+                console.print(f"[green]✓ Extracted ZIP to {extract_dir}[/green]")
+                return conversations_json
+            
+            # Look for conversations.json in subdirectories
+            for json_file in extract_dir.rglob("conversations.json"):
+                console.print(f"[green]✓ Found conversations.json at {json_file}[/green]")
+                return json_file
+            
+            console.print(f"[red]No conversations.json found in ZIP file[/red]")
+            return None
+            
+        except Exception as e:
+            console.print(f"[red]Error extracting ZIP: {e}[/red]")
+            return None
+    
+    def _extract_artifacts_from_conversations(self, input_path: Path) -> List[Dict[str, Any]]:
+        """Extract artifacts - unified method for full extraction."""
+        if input_path.is_file() and input_path.suffix == '.json':
+            return self._extract_artifacts_from_json(input_path)
+        elif input_path.is_dir():
+            return self._extract_artifacts_from_processed_conversations_dir(input_path)
+        return []
+    
+    def _extract_artifacts_from_json(self, json_path: Path) -> List[Dict[str, Any]]:
+        """Extract artifacts from conversations.json - reused from artifacts plugin logic."""
+        artifacts = []
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                conversations = json.load(f)
+            
+            for conv in conversations:
+                conv_artifacts = self._extract_artifacts_from_conversation(conv)
+                artifacts.extend(conv_artifacts)
+                
+        except Exception as e:
+            console.print(f"[red]Error reading {json_path}: {e}[/red]")
+        
+        return artifacts
+    
+    def _extract_artifacts_from_processed_conversations_dir(self, dir_path: Path) -> List[Dict[str, Any]]:
+        """Extract artifacts from processed conversations directory."""
+        # For now, processed conversations don't contain artifacts
+        # This could be expanded in the future
+        return []
+    
+    def _extract_artifacts_from_conversation(self, conversation: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract artifacts from a single conversation - reused from artifacts plugin logic."""
+        artifacts = []
+        
+        conv_id = conversation.get('uuid', 'unknown')
+        conv_name = conversation.get('name', 'Untitled')
+        conv_created = conversation.get('created_at', '')
+        
+        for msg_idx, message in enumerate(conversation.get('chat_messages', [])):
+            for content_idx, content in enumerate(message.get('content', [])):
+                # Look for tool_use with name "artifacts"
+                if (content.get('type') == 'tool_use' and 
+                    content.get('name') == 'artifacts'):
+                    
+                    artifact = {
+                        'conversation_id': conv_id,
+                        'conversation_name': conv_name,
+                        'conversation_created': conv_created,
+                        'message_index': msg_idx,
+                        'content_index': content_idx,
+                        'tool_use_id': content.get('id', ''),
+                        'created_at': message.get('created_at', ''),
+                        'sender': message.get('sender', ''),
+                    }
+                    
+                    # Extract artifact metadata from input
+                    input_data = content.get('input', {})
+                    artifact.update({
+                        'type': input_data.get('type', 'unknown'),
+                        'title': input_data.get('title', 'Untitled Artifact'),
+                        'identifier': input_data.get('identifier', ''),
+                        'content': input_data.get('content', ''),
+                    })
+                    
+                    # Try to find corresponding tool_result for content
+                    artifact['result_content'] = self._find_tool_result(
+                        conversation, artifact['tool_use_id']
+                    )
+                    
+                    artifacts.append(artifact)
+        
+        return artifacts
+    
+    def _find_tool_result(self, conversation: Dict[str, Any], tool_use_id: str) -> str:
+        """Find the tool_result content for a given tool_use_id - reused from artifacts plugin."""
+        for message in conversation.get('chat_messages', []):
+            for content in message.get('content', []):
+                if (content.get('type') == 'tool_result' and 
+                    content.get('tool_use_id') == tool_use_id):
+                    return content.get('content', '')
+        return ''
+    
+    def _save_artifacts(self, artifacts: List[Dict[str, Any]], output_path: Path) -> List[Dict[str, Any]]:
+        """Save artifacts as individual files - simplified version from artifacts plugin."""
+        saved_artifacts = []
+        
+        for artifact in artifacts:
+            # Create date-based subdirectory
+            conv_date = artifact['conversation_created'][:10] if artifact['conversation_created'] else 'unknown-date'
+            date_dir = output_path / conv_date
+            date_dir.mkdir(exist_ok=True)
+            
+            # Generate filename
+            title = self._safe_filename_for_artifacts(artifact['title'])
+            identifier = artifact['identifier'] or 'artifact'
+            filename = f"{identifier}_{title}"
+            
+            # Determine file extension based on type
+            if artifact['type'] == 'text/html':
+                ext = '.html'
+            elif artifact['type'] == 'text/markdown':
+                ext = '.md'
+            elif 'json' in artifact['type']:
+                ext = '.json'
+            else:
+                ext = '.txt'
+            
+            file_path = date_dir / f"{filename}{ext}"
+            
+            # Handle naming conflicts
+            counter = 1
+            while file_path.exists():
+                file_path = date_dir / f"{filename}_{counter}{ext}"
+                counter += 1
+            
+            # Save artifact content
+            content = artifact.get('result_content') or artifact.get('content', '')
+            if content:
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    
+                    saved_info = {
+                        'artifact': artifact,
+                        'file_path': file_path,
+                        'file_size': len(content),
+                    }
+                    saved_artifacts.append(saved_info)
+                    
+                except Exception as e:
+                    console.print(f"[red]Error saving {file_path}: {e}[/red]")
+        
+        return saved_artifacts
+    
+    def _safe_filename_for_artifacts(self, name: str) -> str:
+        """Convert a string to a safe filename - reused from artifacts plugin."""
+        # Remove/replace problematic characters
+        safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        # Replace spaces with underscores and limit length
+        safe_name = safe_name.replace(' ', '_')[:50]
+        return safe_name or 'untitled'
+    
+    def _generate_extraction_report(self, output_dir: Path, input_path: Path, extractions_completed: int) -> None:
+        """Generate a summary report of the full extraction."""
+        report_path = output_dir / "extraction-report.md"
+        
+        report_content = f"""# Full Extraction Report
+
+## Extraction Summary
+
+- **Input**: {input_path}
+- **Output Directory**: {output_dir}
+- **Timestamp**: {datetime.now().isoformat()}
+- **Extractions Completed**: {extractions_completed}/4
+
+## Files Generated
+
+"""
+        
+        # List all files in output directory
+        for file_path in sorted(output_dir.rglob("*")):
+            if file_path.is_file() and file_path.name != "extraction-report.md":
+                relative_path = file_path.relative_to(output_dir)
+                file_size = file_path.stat().st_size
+                
+                if file_size > 1024 * 1024:  # > 1MB
+                    size_str = f"{file_size / (1024*1024):.1f} MB"
+                elif file_size > 1024:  # > 1KB
+                    size_str = f"{file_size / 1024:.1f} KB"
+                else:
+                    size_str = f"{file_size} bytes"
+                
+                report_content += f"- `{relative_path}` ({size_str})\\n"
+        
+        report_content += f"""
+
+## Usage
+
+This extraction contains:
+
+1. **Artifacts** (`artifacts/` directory) - Claude artifacts organized by date
+2. **Time Tracking** (`time-tracking.csv`) - Project time entries with context
+3. **Links** (`links.csv`) - All URLs found in conversations with metadata
+4. **FloatAST Outlines** (`floatast-outlines.json`) - Structured conversation analysis
+
+## Next Steps
+
+- Import CSVs into spreadsheet tools for analysis
+- Use FloatAST JSON for conversation navigation
+- Review artifacts for code/content reuse
+- Analyze time tracking for project insights
+
+---
+*Generated by floatctl v{self.__class__.version}*
+"""
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report_content)

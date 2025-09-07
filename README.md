@@ -4,14 +4,34 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
-## 🎉 New in v0.6.0: Multi-Pattern Extraction Fixed!
+## 🎉 New in v0.8.2: Remote MCP Server Support & Cross-Platform Access!
 
-**Major Bug Fix**: FloatCtl now captures **ALL patterns** in multi-pattern lines, not just the first one! This fixes a critical consciousness technology failure that was breaking pattern extraction.
+**Remote Access Breakthrough**: Full cross-platform consciousness technology - desktop native, desktop web, iOS native all connecting to your evna MCP server remotely via ngrok tunneling.
 
-- **Before**: `"eureka:: Found! decision:: Fix tomorrow"` → Only captured 'eureka' ❌
-- **After**: `"eureka:: Found! decision:: Fix tomorrow"` → Captures both patterns ✅
-- **Performance**: **3x improvement** in pattern capture rate
-- **Technology**: Hybrid LangExtract/regex with automatic fallback
+### Remote MCP Server (v0.8.2)
+- **Feature**: `--host 0.0.0.0` binding enables remote access via ngrok/tunneling ✅
+- **Cross-Platform**: Works on Claude Desktop native, web, and iOS mobile 🚀
+- **Security**: Basic auth support for secure remote connections 🔒
+- **Architecture**: Distributed consciousness technology across all Claude interfaces 🌐
+- **Commands**: `floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000`
+
+### Previous: MCP JSON Serialization Fix (v0.8.1)
+- **Problem**: `query_recent_context()` and `get_morning_context()` failing with "Error finding id" ❌
+- **Solution**: Added JSON-safe type conversion for numpy arrays and Path objects ✅
+- **Impact**: Claude Desktop MCP tools now work reliably without serialization errors
+- **Enhancement**: Added debug mode (`FLOATCTL_MCP_DEBUG=true`) while preserving ChromaDB suppression
+
+### Bridge Metadata Standardization (v0.8.0)  
+- **Before**: Inconsistent metadata (`created` vs `timestamp`, missing bridge IDs) ❌  
+- **After**: All bridges have standardized fields (`bridge_id`, `created`, `created_at`, `created_unix`) ✅
+- **Impact**: Reliable date-based queries and bridge restoration workflow
+- **Technology**: Centralized `create_bridge_document()` function
+
+### MCP Server Enhancement (v0.8.0)
+- **New Prompts**: `ritual_prompt()` and `create_bridge()` for Claude Desktop
+- **New Resources**: `bridge://recent`, `bridge://search`, `bridge://{bridge_id}`
+- **Integration**: Seamless bridge creation and restoration in Claude Desktop
+- **Workflow**: `bridge::create` → `bridge::restore {id}` across conversations
 
 [See CHANGELOG](CHANGELOG.md) for full details.
 
