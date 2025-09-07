@@ -41,7 +41,7 @@ The MCP server (`src/floatctl/mcp_server.py`) is being refactored from a monolit
 src/floatctl/mcp/
 ├── __init__.py              # Package initialization
 ├── patterns.py              # Pattern processing (✅ Phase 1 complete)
-├── chroma_tools.py          # ChromaDB operations (Phase 2)
+├── chroma_tools.py          # ChromaDB operations (✅ Phase 2 complete)
 ├── context_tools.py         # Context management tools (Phase 3)
 ├── utils.py                 # Utility functions (Phase 4)
 ├── resources.py             # MCP resources & prompts (Phase 5)
@@ -54,9 +54,10 @@ src/floatctl/mcp/
    - `PATTERN_ROUTING` configuration
    - Commit: 04f99ea (revert point)
 
-2. **Phase 2: ChromaDB Operations** (Pending)
-   - All `chroma_*` tool functions (~800-1000 lines)
-   - `get_chroma_client()` and helpers
+2. **Phase 2: ChromaDB Operations** ✅ Complete - 839 lines extracted 
+   - All 12 `chroma_*` tool functions (list, create, info, count, modify, delete, add, query, get, update, delete_docs, peek)
+   - ChromaDB utilities (get_chroma_client, track_usage, sanitize_metadata)
+   - Commit: 4525ee8 (revert point)
 
 3. **Phase 3: Context Tools** (Pending)
    - `process_context_marker()`, `query_recent_context()`
