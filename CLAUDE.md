@@ -245,6 +245,106 @@ Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`
 - **Problem**: Large ChromaDB queries exceed context window
 - **Solution**: Use `limit` parameter, query surgical collections
 
+## Evna Context Concierge Architecture
+
+### What is Evna?
+Evna is the MCP (Model Context Protocol) server component that provides Claude Desktop with direct access to consciousness technology operations. She serves as the bridge between Claude's UI and the FloatCtl ecosystem's ChromaDB collections.
+
+### Core Architecture Principle
+**"Smart LLMs orchestrate in Claude Code writing dumb tools for smart Claude to run"**
+- Claude Code orchestrates complex workflows
+- Python tools (like evna) execute simple, focused operations
+- The MCP server cannot call Claude's Task tool - that's architectural impossibility
+- Python serves Claude, not the other way around
+
+### File Locations
+- **MCP Server Implementation**: `src/floatctl/mcp_server.py` (lines 1400-2200)
+- **ChromaDB Wrapper**: `src/floatctl/core/chroma.py`
+- **MCP Config**: `~/.config/Claude/claude_desktop_config.json`
+- **Debug Logs**: `~/.floatctl/logs/mcp_server_debug.jsonl` (when FLOATCTL_MCP_DEBUG=true)
+- **Claude Desktop Logs**: `/Users/evan/Library/Logs/Claude/mcp-server-evna-context-concierge.log`
+
+### Critical Implementation Details
+
+#### ChromaDB Telemetry Suppression (MANDATORY)
+```python
+# Lines 32-87 in mcp_server.py
+# MUST suppress ChromaDB telemetry or MCP server crashes on tool refresh
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["ALLOW_RESET"] = "FALSE"
+```
+**WARNING**: Removing this suppression causes MCP server errors every time tools refresh. This is not optional.
+
+#### JSON Serialization Requirements
+MCP requires pure Python types. Common serialization fixes:
+```python
+# Convert numpy arrays, Path objects, etc to JSON-safe types
+safe_meta = {}
+for k, v in meta.items():
+    if isinstance(v, (str, int, float, bool, type(None))):
+        safe_meta[k] = v
+    elif isinstance(v, (list, tuple)):
+        safe_meta[k] = list(v)
+    elif isinstance(v, Path):
+        safe_meta[k] = str(v)
+    else:
+        safe_meta[k] = str(v)
+```
+
+### Evna's Key Functions
+
+#### Pattern Processing
+- `smart_pattern_processor()` - Captures ANY :: pattern and routes intelligently
+- `process_context_marker()` - Specialized ctx:: handling with metadata extraction
+- `capture_pattern()` - Legacy pattern capture (use smart_pattern_processor instead)
+
+#### Context Queries
+- `query_recent_context()` - Get recent entries from active_context_stream (24-36 hour window)
+- `get_morning_context()` - Morning brain boot with unfinished work priorities
+- `surface_recent_context()` - "What was I working on?" intelligent surfacing
+- `search_context()` - Semantic search in active_context_stream
+
+#### ChromaDB Operations
+All standard ChromaDB operations are exposed with context window protection:
+- `chroma_list_collections()` - List all collections
+- `chroma_query_documents()` - Semantic search with metadata filters
+- `chroma_get_documents()` - Direct document retrieval
+- `chroma_add_documents()` - Add new documents
+- `chroma_peek_collection()` - Safe preview (avoids numpy serialization errors)
+
+### Common Error Patterns and Solutions
+
+#### "Error finding id" 
+- **Cause**: MCP serialization layer rejecting non-JSON types
+- **Solution**: Ensure all return values are JSON-serializable (implemented in lines 1736-1764)
+
+#### "Unable to serialize unknown type: <class 'numpy.ndarray'>"
+- **Cause**: ChromaDB returns numpy arrays
+- **Solution**: Use peek_collection_safe() or convert arrays to lists
+
+#### MCP Server Crashes on Tool Refresh
+- **Cause**: ChromaDB telemetry not suppressed
+- **Solution**: Ensure telemetry suppression environment variables are set
+
+### Debug Mode
+Enable targeted debugging without breaking ChromaDB suppression:
+```bash
+export FLOATCTL_MCP_DEBUG=true
+uv run floatctl mcp serve
+# Logs written to ~/.floatctl/logs/mcp_server_debug.jsonl
+```
+
+### Testing Evna Functions
+```bash
+# Test from Claude Desktop
+# 1. Use evna tools directly in Claude
+# 2. Check logs: tail -f /Users/evan/Library/Logs/Claude/mcp-server-evna-context-concierge.log
+
+# Test from CLI
+uv run floatctl mcp test
+uv run floatctl mcp debug --debug
+```
+
 ## Philosophy
 
 FloatCtl follows the "shacks not cathedrals" philosophy - practical, focused tools that solve real problems. Each plugin is a self-contained consciousness archaeology tool that does one thing well. The system augments human cognition rather than replacing it, building cognitive prosthetics for consciousness archaeology and bridge walking through semantic memory networks.

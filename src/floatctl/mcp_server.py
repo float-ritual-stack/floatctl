@@ -29,10 +29,13 @@ os.environ['POSTHOG_HOST'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
 os.environ['CURL_CA_BUNDLE'] = ''
 
-# Suppress all logging
+# Check for debug mode
+DEBUG_MCP = os.environ.get('FLOATCTL_MCP_DEBUG', '').lower() == 'true'
+
+# ALWAYS suppress ChromaDB and telemetry logging (causes MCP server crashes)
 import logging
 
-# Completely disable logging
+# Completely disable logging for problematic libraries
 logging.disable(logging.CRITICAL)
 
 # Configure root logger to be completely silent
@@ -41,7 +44,7 @@ logging.basicConfig(
     handlers=[logging.NullHandler()]
 )
 
-# Silence all known chatty loggers
+# Silence all known chatty loggers - ALWAYS, even in debug mode
 chatty_loggers = [
     'chromadb', 'chromadb.telemetry', 'chromadb.api', 'chromadb.db',
     'posthog', 'posthog.client', 'posthog.request',
@@ -55,6 +58,33 @@ for logger_name in chatty_loggers:
     logger.disabled = True
     logger.propagate = False
     logger.handlers = [logging.NullHandler()]
+
+# Set up our own debug logger if needed
+if DEBUG_MCP:
+    from pathlib import Path
+    from datetime import datetime
+    import json
+    
+    log_dir = Path.home() / '.floatctl' / 'logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / 'mcp_server_debug.jsonl'
+    
+    def debug_log(event: str, **kwargs):
+        """Simple debug logger that won't interfere with MCP protocol"""
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "event": event,
+            **kwargs
+        }
+        with open(log_file, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    
+    # Log that debug mode is active
+    debug_log("mcp_debug_enabled", log_file=str(log_file))
+else:
+    # No-op debug logger
+    def debug_log(event: str, **kwargs):
+        pass
 
 # Monkey patch requests to prevent telemetry
 try:
@@ -1724,6 +1754,9 @@ async def query_recent_context(
     Returns context entries matching the specified criteria.
     """
     try:
+        debug_log("query_recent_context_called", 
+                 project=project, mode=mode, hours=hours)
+        
         chroma = get_chroma_client()
         results = chroma.query_recent_context(
             collection_name="active_context_stream",
@@ -1733,17 +1766,37 @@ async def query_recent_context(
             limit=10
         )
         
-        # Format results
+        debug_log("query_recent_context_results",
+                 doc_count=len(results.get("documents", [])),
+                 has_ids=bool(results.get("ids")),
+                 has_metadatas=bool(results.get("metadatas")))
+        
+        # Format results - ensure JSON serializable types
         output = []
         for doc, meta, doc_id in zip(
             results.get("documents", []),
             results.get("metadatas", []),
             results.get("ids", [])
         ):
+            # Ensure all values are JSON-serializable
+            safe_meta = {}
+            if meta:
+                for k, v in meta.items():
+                    # Convert any non-serializable types to strings
+                    if isinstance(v, (str, int, float, bool, type(None))):
+                        safe_meta[k] = v
+                    elif isinstance(v, (list, tuple)):
+                        safe_meta[k] = list(v)
+                    elif isinstance(v, dict):
+                        safe_meta[k] = v
+                    else:
+                        safe_meta[k] = str(v)
+            
             output.append({
-                "id": doc_id,
-                "content": doc,
-                "metadata": meta
+                "id": str(doc_id) if doc_id else "",
+                "content": str(doc) if doc else "",
+                "metadata": safe_meta,
+                "timestamp": safe_meta.get("timestamp", "")
             })
         
         return output

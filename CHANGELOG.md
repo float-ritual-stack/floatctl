@@ -5,6 +5,32 @@ All notable changes to floatctl-py will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2025-09-07
+
+### 🐛 Critical Fixes: Evna MCP JSON Serialization
+
+### Fixed
+- **Critical: "Error finding id" MCP serialization** - Fixed JSON-unsafe type conversion
+  - `query_recent_context()` and `get_morning_context()` now properly serialize all return values
+  - Added comprehensive type checking for numpy arrays, Path objects, and other non-JSON types
+  - MCP server now returns clean JSON-serializable data to Claude Desktop
+- **Debug Mode Enhancement** - Added targeted debugging without breaking ChromaDB suppression
+  - `FLOATCTL_MCP_DEBUG=true` enables debug logging to `~/.floatctl/logs/mcp_server_debug.jsonl`
+  - Preserves mandatory ChromaDB telemetry suppression to prevent MCP server crashes
+
+### Enhanced
+- **CLAUDE.md Documentation** - Added comprehensive evna architecture section
+  - Complete file location reference for MCP server components
+  - JSON serialization requirements and common error patterns
+  - Debug mode usage and testing procedures
+  - Prevents repetitive context rebuilding about evna architecture
+
+### Technical Details
+- MCP protocol requires pure Python types (str, int, float, bool, list, dict)
+- ChromaDB telemetry suppression remains mandatory to prevent tool refresh crashes
+- Type conversion ensures Path objects → strings, numpy arrays → lists
+- Debug logging isolated to prevent interference with ChromaDB operations
+
 ## [0.8.0] - 2025-09-07
 
 ### 🎯 Major Feature: Bridge Metadata Standardization & MCP Enhancement Suite

@@ -4,17 +4,23 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
-## 🎉 New in v0.8.0: Bridge Metadata Standardization & MCP Enhancement Suite!
+## 🎉 New in v0.8.1: Critical MCP Fixes & Enhanced Documentation!
 
-**Major Infrastructure Improvement**: FloatCtl now creates bridges with **standardized metadata** across all creation methods, plus enhanced MCP server integration for Claude Desktop users.
+**Critical Bug Fix**: Fixed "Error finding id" serialization errors in evna MCP functions, plus comprehensive evna architecture documentation to prevent context rebuilding.
 
-### Bridge Metadata Standardization
+### MCP JSON Serialization Fix (v0.8.1)
+- **Problem**: `query_recent_context()` and `get_morning_context()` failing with "Error finding id" ❌
+- **Solution**: Added JSON-safe type conversion for numpy arrays and Path objects ✅
+- **Impact**: Claude Desktop MCP tools now work reliably without serialization errors
+- **Enhancement**: Added debug mode (`FLOATCTL_MCP_DEBUG=true`) while preserving ChromaDB suppression
+
+### Bridge Metadata Standardization (v0.8.0)  
 - **Before**: Inconsistent metadata (`created` vs `timestamp`, missing bridge IDs) ❌  
 - **After**: All bridges have standardized fields (`bridge_id`, `created`, `created_at`, `created_unix`) ✅
 - **Impact**: Reliable date-based queries and bridge restoration workflow
 - **Technology**: Centralized `create_bridge_document()` function
 
-### MCP Server Enhancement
+### MCP Server Enhancement (v0.8.0)
 - **New Prompts**: `ritual_prompt()` and `create_bridge()` for Claude Desktop
 - **New Resources**: `bridge://recent`, `bridge://search`, `bridge://{bridge_id}`
 - **Integration**: Seamless bridge creation and restoration in Claude Desktop
