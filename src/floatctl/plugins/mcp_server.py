@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 from floatctl.plugin_manager import PluginBase, command, group, option
-from floatctl.logging_setup import get_logger
+from floatctl.core.logging import get_logger
 
 
 class MCPServerPlugin(PluginBase):

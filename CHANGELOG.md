@@ -5,6 +5,30 @@ All notable changes to floatctl-py will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2025-09-07
+
+### 🔧 MCP Server Refactoring - Phase 1: Pattern Processing Module
+
+### Refactored
+- **Pattern Processing Module** - Extracted to dedicated `src/floatctl/mcp/patterns.py`
+  - Moved `parse_any_pattern()`, `parse_ctx_metadata()`, `get_hybrid_extractor()` functions
+  - Created centralized `PATTERN_ROUTING` configuration dictionary
+  - Added `get_pattern_collection()` helper function
+  - Reduced main `mcp_server.py` from 3,366 to 3,093 lines (273 lines extracted)
+  - Maintained backward compatibility with existing imports
+
+### Fixed
+- **MCP Plugin Import Error** - Fixed incorrect logging import
+  - Changed from `floatctl.logging_setup` to `floatctl.core.logging`
+  - MCP plugin now loads correctly and appears in CLI commands
+  - Resolved plugin registration failure after indentation fixes
+
+### Technical Details
+- Created modular structure for future Phase 2-6 refactoring
+- Pattern processing now isolated for easier testing and maintenance
+- All imports verified working, MCP server functionality preserved
+- Commit serves as revert point for Phase 1 extraction
+
 ## [0.8.2] - 2025-09-07
 
 ### 🚀 Remote MCP Server Support - Cross-Platform Consciousness Technology
