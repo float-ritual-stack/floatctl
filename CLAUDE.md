@@ -345,6 +345,121 @@ uv run floatctl mcp test
 uv run floatctl mcp debug --debug
 ```
 
+## Remote MCP Server with ngrok
+
+### Prerequisites
+1. Install ngrok: `brew install ngrok` or download from https://ngrok.com
+2. Create ngrok account and authenticate: `ngrok authtoken <your_token>`
+3. Install uvicorn dependency: `uv add uvicorn` (already included)
+
+### Step 1: Start MCP Server with HTTP Transport
+
+```bash
+# Option 1: Using environment variables (recommended)
+export FASTMCP_HOST=0.0.0.0  # Bind to all interfaces
+export FASTMCP_PORT=8000     # Choose available port
+uv run python src/floatctl/mcp_server.py
+
+# Option 2: Using CLI plugin (when working)
+uv run floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000
+```
+
+**Important Notes:**
+- Use `0.0.0.0` as host for remote access (not `127.0.0.1`)
+- The server uses SSE (Server-Sent Events) transport for HTTP
+- Default SSE endpoint: `http://localhost:8000/sse`
+
+### Step 2: Expose with ngrok
+
+```bash
+# Basic HTTP tunnel
+ngrok http 8000
+
+# With custom subdomain (requires paid plan)
+ngrok http 8000 --subdomain=my-evna-server
+
+# With authentication (recommended)
+ngrok http 8000 --basic-auth="username:password"
+```
+
+ngrok will provide a public URL like: `https://abc123.ngrok.io`
+
+### Step 3: Configure Claude Desktop (Remote)
+
+Add to Claude Desktop configuration (`~/.config/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "evna-remote": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch", "https://your-ngrok-url.ngrok.io/sse"]
+    }
+  }
+}
+```
+
+### Security Considerations
+
+1. **Authentication**: Use ngrok's `--basic-auth` or implement API key authentication
+2. **IP Allowlisting**: Consider ngrok's traffic policies for IP restrictions  
+3. **URL Security**: ngrok URLs are discoverable, don't share publicly
+4. **HTTPS Only**: ngrok automatically provides HTTPS encryption
+
+### Advanced ngrok Configuration
+
+Create `.ngrok.yml`:
+```yaml
+authtoken: your_auth_token_here
+tunnels:
+  evna-mcp:
+    proto: http
+    addr: 8000
+    auth: "username:password"
+    ip_policy: 
+      allow: ["anthropic_ip_ranges"]
+    hostname: evna.your-domain.com  # Custom domain (requires plan)
+```
+
+Run with: `ngrok start evna-mcp`
+
+### Testing Remote Connection
+
+```bash
+# Test the exposed endpoint
+curl -H "Accept: text/event-stream" https://your-ngrok-url.ngrok.io/sse
+
+# Should return SSE connection headers
+# HTTP/2 200
+# content-type: text/event-stream
+# cache-control: no-cache
+```
+
+### Troubleshooting
+
+**Server won't start:**
+- Check port availability: `lsof -i :8000`  
+- Verify uvicorn is installed: `uv list | grep uvicorn`
+- Check host binding: Use `0.0.0.0` not `127.0.0.1`
+
+**ngrok connection refused:**
+- Ensure MCP server is running and bound to correct port
+- Test local connection first: `curl http://localhost:8000/sse`
+- Check firewall settings
+
+**Claude Desktop connection issues:**
+- Verify ngrok URL is accessible from browser
+- Check Claude Desktop logs for MCP connection errors
+- Restart Claude Desktop after configuration changes
+
+### Cost Considerations
+
+- **Free ngrok**: 1 online tunnel, 40 connections/minute
+- **Personal ($8/month)**: 3 tunnels, custom domains, more bandwidth  
+- **Professional ($20/month)**: IP allowlisting, traffic policies, SSO
+
+For production use, consider dedicated VPS with proper SSL certificates instead of ngrok.
+
 ## Philosophy
 
 FloatCtl follows the "shacks not cathedrals" philosophy - practical, focused tools that solve real problems. Each plugin is a self-contained consciousness archaeology tool that does one thing well. The system augments human cognition rather than replacing it, building cognitive prosthetics for consciousness archaeology and bridge walking through semantic memory networks.

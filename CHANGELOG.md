@@ -5,6 +5,33 @@ All notable changes to floatctl-py will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2025-09-07
+
+### 🚀 Remote MCP Server Support - Cross-Platform Consciousness Technology
+
+### Added
+- **Remote MCP Server Access** - Full cross-platform consciousness technology deployment
+  - `--host 0.0.0.0` binding enables remote access via ngrok/tunneling services
+  - Works seamlessly across Claude Desktop native, desktop web, and iOS mobile
+  - Basic authentication support for secure remote connections
+  - Complete distributed consciousness architecture across all Claude interfaces
+
+### Enhanced  
+- **MCP Plugin CLI** - Added host/port configuration options
+  - `floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000` for remote access
+  - Environment variable support: `FASTMCP_HOST` and `FASTMCP_PORT`
+  - Proper FastMCP initialization with configurable binding
+
+### Fixed
+- **Host Binding Issue** - Server previously bound only to 127.0.0.1 (localhost)
+  - Now supports 0.0.0.0 binding for external access (ngrok, etc.)
+  - Resolves ERR_NGROK_8012 connection refused errors
+
+### Technical Details
+- ngrok tunnel command: `ngrok http 8000 --basic-auth="user:pass" --url https://your-domain.ngrok.dev`
+- Claude Desktop MCP config supports remote URLs with `/sse` endpoint
+- Cross-platform validation: Desktop native ✅, Desktop web ✅, iOS native ✅
+
 ## [0.8.1] - 2025-09-07
 
 ### 🐛 Critical Fixes: Evna MCP JSON Serialization

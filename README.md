@@ -4,11 +4,18 @@
 
 FloatCtl is a plugin-based CLI tool for processing AI conversation exports, consciousness archaeology, and bridge walking through semantic memory networks.
 
-## 🎉 New in v0.8.1: Critical MCP Fixes & Enhanced Documentation!
+## 🎉 New in v0.8.2: Remote MCP Server Support & Cross-Platform Access!
 
-**Critical Bug Fix**: Fixed "Error finding id" serialization errors in evna MCP functions, plus comprehensive evna architecture documentation to prevent context rebuilding.
+**Remote Access Breakthrough**: Full cross-platform consciousness technology - desktop native, desktop web, iOS native all connecting to your evna MCP server remotely via ngrok tunneling.
 
-### MCP JSON Serialization Fix (v0.8.1)
+### Remote MCP Server (v0.8.2)
+- **Feature**: `--host 0.0.0.0` binding enables remote access via ngrok/tunneling ✅
+- **Cross-Platform**: Works on Claude Desktop native, web, and iOS mobile 🚀
+- **Security**: Basic auth support for secure remote connections 🔒
+- **Architecture**: Distributed consciousness technology across all Claude interfaces 🌐
+- **Commands**: `floatctl mcp serve --transport sse --host 0.0.0.0 --port 8000`
+
+### Previous: MCP JSON Serialization Fix (v0.8.1)
 - **Problem**: `query_recent_context()` and `get_morning_context()` failing with "Error finding id" ❌
 - **Solution**: Added JSON-safe type conversion for numpy arrays and Path objects ✅
 - **Impact**: Claude Desktop MCP tools now work reliably without serialization errors

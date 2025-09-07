@@ -119,8 +119,17 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
 
-# Create the MCP server instance
-mcp = FastMCP("evna-context-concierge")
+# Create the MCP server instance with configurable settings
+# Environment variables for configuration:
+# FASTMCP_HOST - Server host (default: 127.0.0.1, set to 0.0.0.0 for remote access)  
+# FASTMCP_PORT - Server port (default: 8000)
+# FASTMCP_DEBUG - Debug mode (default: False)
+mcp = FastMCP(
+    "evna-context-concierge",
+    host=os.environ.get('FASTMCP_HOST', '127.0.0.1'),
+    port=int(os.environ.get('FASTMCP_PORT', '8000')),
+    debug=os.environ.get('FASTMCP_DEBUG', '').lower() == 'true'
+)
 
 # Initialize Chroma client (lazy loaded)
 _chroma_client = None
