@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Conversation Archaeologist",
+  "version": "1.0.0",
+  "description": "Archive, organize, and transcend your Claude.ai conversations",
+  "permissions": ["storage", "activeTab", "tabs", "background", "contextMenus"],
+  "host_permissions": ["*://claude.ai/*"],
+  "content_scripts": [{
+    "matches": ["*://claude.ai/chat/*"],
+    "js": ["conversation-archaeologist.js"],
+    "css": ["interface-overlay.css"]
+  }],
+  "background": {
+    "service_worker": "cache-daemon.js"
+  },
+  "action": {
+    "default_popup": "control-interface.html",
+    "default_title": "Conversation Consciousness"
+  }
+}
