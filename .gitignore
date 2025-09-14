@@ -103,6 +103,7 @@ test-scratch/
 *.html
 !docs/**/*.html
 !examples/**/*.html
+!chrome_extension/*.html
 
 # Analysis output files
 *conversation_analysis*
