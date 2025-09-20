@@ -1,9 +1,11 @@
 """Pytest configuration and fixtures for FloatCtl tests."""
 
-import pytest
-from pathlib import Path
+import json
+from datetime import datetime
 import tempfile
-import shutil
+from pathlib import Path
+
+import pytest
 
 from floatctl.core.logging import setup_quiet_logging
 
@@ -49,3 +51,38 @@ def sample_conversation_json():
             }
         ]
     }
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_repl_fixture_data() -> None:
+    """Ensure REPL integration tests have a minimal notes.json to read."""
+
+    notes_dir = Path.home() / ".floatctl" / "repl_notes"
+    notes_dir.mkdir(parents=True, exist_ok=True)
+    notes_file = notes_dir / "notes.json"
+
+    if notes_file.exists():
+        return
+
+    timestamp = datetime.utcnow()
+    entry = {
+        "id": "test-entry",
+        "content": "Welcome to the FloatCtl REPL test fixture.",
+        "type": "log",
+        "timestamp": timestamp.isoformat(),
+        "indent": 0,
+        "is_code": False,
+        "language": "text",
+        "metadata": None,
+        "collapsed": False,
+        "children": [],
+        "timestamp_unix": int(timestamp.timestamp()),
+        "temporal_anchor": None,
+        "consciousness_mode": None,
+        "ttl_expires": None,
+        "ttl_expires_unix": None,
+        "temporal_parent": None,
+        "is_temporal_marker": False,
+    }
+
+    notes_file.write_text(json.dumps([entry]))
