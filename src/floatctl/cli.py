@@ -617,22 +617,15 @@ def load_and_register_plugins(cli_app: click.Group) -> PluginManager:
                     try:
                         # Basic synchronous loading
                         if info.loaded_from == "entry_point":
-                            if sys.version_info >= (3, 10):
-                                from importlib.metadata import entry_points
-                                discovered = entry_points(group="floatctl.plugins")
-                            else:
-                                from importlib.metadata import entry_points
-                                discovered = entry_points().get("floatctl.plugins", [])
-                            
-                            for entry_point in discovered:
-                                if entry_point.name == name:
-                                    plugin_class = entry_point.load()
-                                    plugin_instance = plugin_class()
-                                    plugin_instance.set_manager(plugin_manager)
-                                    plugin_instance._state = PluginState.ACTIVE  # Skip full lifecycle for now
-                                    info.instance = plugin_instance
-                                    info.state = PluginState.ACTIVE
-                                    break
+                            plugin_class = plugin_manager.get_plugin_class(name)
+                            if plugin_class is None:
+                                raise RuntimeError(f"Failed to find plugin class for {name}")
+
+                            plugin_instance = plugin_class()
+                            plugin_instance.set_manager(plugin_manager)
+                            plugin_instance._state = PluginState.ACTIVE  # Skip full lifecycle for now
+                            info.instance = plugin_instance
+                            info.state = PluginState.ACTIVE
                     except Exception as e:
                         info.state = PluginState.ERROR
                         info.error = str(e)
