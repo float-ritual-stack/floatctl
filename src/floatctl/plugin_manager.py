@@ -103,6 +103,7 @@ class PluginState(Enum):
 @dataclass
 class PluginInfo:
     """Information about a plugin."""
+
     name: str
     instance: Optional['PluginBase'] = None
     entry_point: Optional[str] = None
@@ -112,6 +113,8 @@ class PluginInfo:
     dependents: Set[str] = field(default_factory=set)
     priority: int = 100
     error: Optional[str] = None
+    entry_point_obj: Optional[Any] = None
+    plugin_class: Optional[Type['PluginBase']] = None
     
     def __post_init__(self):
         """Initialize mutable fields."""
@@ -318,13 +321,57 @@ class PluginBase:
 
 class PluginManager:
     """Manage plugin discovery, loading, and lifecycle."""
-    
+
     def __init__(self):
         """Initialize plugin manager."""
         self.plugins: Dict[str, PluginInfo] = {}
         self._logger = None
         self._initialization_order: List[str] = []
         self._middleware_manager = middleware_manager
+        self._entry_point_cache: Dict[str, Any] = {}
+
+    def get_plugin_class(self, name: str) -> Optional[Type['PluginBase']]:
+        """Retrieve the plugin class for the given plugin name.
+
+        Uses cached entry point information when available to avoid the
+        relatively expensive `importlib.metadata.entry_points` lookup on each
+        access. This significantly reduces CLI startup cost when many plugins
+        are installed.
+        """
+
+        info = self.plugins.get(name)
+        if not info:
+            return None
+
+        if info.plugin_class is not None:
+            return info.plugin_class
+
+        if info.entry_point_obj is not None:
+            plugin_class = info.entry_point_obj.load()
+            info.plugin_class = plugin_class
+            return plugin_class
+
+        entry_point = self._entry_point_cache.get(name)
+        if entry_point is not None:
+            plugin_class = entry_point.load()
+            info.entry_point_obj = entry_point
+            info.plugin_class = plugin_class
+            return plugin_class
+
+        if sys.version_info >= (3, 10):
+            discovered = entry_points(group="floatctl.plugins")
+        else:
+            discovered = entry_points().get("floatctl.plugins", [])
+
+        for entry_point in discovered:
+            if entry_point.name == name:
+                plugin_class = entry_point.load()
+                info.entry_point_obj = entry_point
+                info.plugin_class = plugin_class
+                self._entry_point_cache[name] = entry_point
+                return plugin_class
+
+        return None
     
     @property
     def logger(self):
@@ -373,7 +420,7 @@ class PluginManager:
             try:
                 # Load the plugin class
                 plugin_class = entry_point.load()
-                
+
                 # Validate it's a proper plugin class
                 if not (isinstance(plugin_class, type) and issubclass(plugin_class, PluginBase)):
                     if not os.environ.get('_FLOATCTL_COMPLETE'):
@@ -391,10 +438,13 @@ class PluginManager:
                     loaded_from="entry_point",
                     dependencies=set(getattr(plugin_class, 'dependencies', [])),
                     priority=getattr(plugin_class, 'priority', 100),
-                    state=PluginState.DISCOVERED
+                    state=PluginState.DISCOVERED,
+                    entry_point_obj=entry_point,
+                    plugin_class=plugin_class,
                 )
-                
+
                 self.plugins[entry_point.name] = plugin_info
+                self._entry_point_cache[entry_point.name] = entry_point
                 
                 if not os.environ.get('_FLOATCTL_COMPLETE'):
                     log_plugin_event(
@@ -484,20 +534,16 @@ class PluginManager:
             
             # Load the plugin class and instantiate
             if info.loaded_from == "entry_point":
-                if sys.version_info >= (3, 10):
-                    discovered = entry_points(group="floatctl.plugins")
-                else:
-                    discovered = entry_points().get("floatctl.plugins", [])
-                
-                for entry_point in discovered:
-                    if entry_point.name == name:
-                        plugin_class = entry_point.load()
-                        plugin_instance = plugin_class()
-                        plugin_instance.set_manager(self)
-                        plugin_instance._state = PluginState.LOADED
-                        info.instance = plugin_instance
-                        break
-            
+                plugin_class = self.get_plugin_class(name)
+                if plugin_class is not None:
+                    plugin_instance = plugin_class()
+                    plugin_instance.set_manager(self)
+                    plugin_instance._state = PluginState.LOADED
+                    info.instance = plugin_instance
+
+            if not info.instance and info.loaded_from == "entry_point":
+                raise RuntimeError(f"Failed to instantiate plugin {name}")
+
             if not info.instance:
                 raise RuntimeError(f"Failed to instantiate plugin {name}")
             

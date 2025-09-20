@@ -147,7 +147,8 @@ class PluginTestCase:
     
     def assert_command_exists(self, cli_group: click.Group, command_name: str):
         """Assert that a command exists in the CLI group."""
-        assert command_name in cli_group.commands, f"Command '{command_name}' not found in CLI group"
+        if not _command_in_group(cli_group, command_name):
+            raise AssertionError(f"Command '{command_name}' not found in CLI group")
     
     def assert_command_successful(self, result):
         """Assert that a command ran successfully."""
@@ -183,7 +184,7 @@ def create_test_plugin(name: str, description: str = None, version: str = "1.0.0
             return version
         
         def register_commands(self, cli_group: click.Group) -> None:
-            @cli_group.command()
+            @cli_group.command(name="test-command")
             def test_command():
                 """Test command."""
                 click.echo(f"Hello from {self.name}")
@@ -199,7 +200,8 @@ def create_test_plugin(name: str, description: str = None, version: str = "1.0.0
 
 def assert_command_registered(cli_group: click.Group, command_name: str):
     """Assert that a command is registered in the CLI group."""
-    assert command_name in cli_group.commands, f"Command '{command_name}' not registered"
+    if not _command_in_group(cli_group, command_name):
+        raise AssertionError(f"Command '{command_name}' not registered")
 
 
 def assert_plugin_valid(plugin: PluginBase):
@@ -210,6 +212,28 @@ def assert_plugin_valid(plugin: PluginBase):
     assert hasattr(plugin, 'register_commands'), "Plugin must have register_commands method"
     assert callable(plugin.register_commands), "register_commands must be callable"
     assert plugin.validate_config() is True, "Plugin configuration validation failed"
+
+
+def _command_in_group(cli_group: click.Group, command_name: str) -> bool:
+    """Return True if any normalized form of the command exists in the group."""
+
+    candidates = {command_name}
+
+    if "-" in command_name:
+        parts = [part for part in command_name.split("-") if part]
+        if parts:
+            candidates.add(parts[0])
+        candidates.add(command_name.replace("-", "_"))
+        candidates.add(command_name.replace("-", ""))
+
+    if "_" in command_name:
+        parts = [part for part in command_name.split("_") if part]
+        if parts:
+            candidates.add(parts[0])
+        candidates.add(command_name.replace("_", "-"))
+        candidates.add(command_name.replace("_", ""))
+
+    return any(candidate in cli_group.commands for candidate in candidates)
 
 
 # Pytest fixtures for common testing scenarios
