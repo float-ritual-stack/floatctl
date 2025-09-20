@@ -2,7 +2,6 @@
 
 import json
 import re
-import sys
 import io
 import traceback
 import subprocess
@@ -30,11 +29,37 @@ try:
     from prompt_toolkit.keys import Keys
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.styles import Style
-    from prompt_toolkit.completion import WordCompleter, Completer, Completion
+    from prompt_toolkit.completion import Completer, Completion
     from prompt_toolkit.document import Document
     AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency guard
     AVAILABLE = False
+
+    class Completion:  # type: ignore[no-redef]
+        """Fallback completion object when prompt_toolkit is unavailable."""
+
+        def __init__(
+            self,
+            text: str,
+            start_position: int = 0,
+            display: Optional[str] = None,
+            display_meta: Optional[str] = None,
+        ) -> None:
+            self.text = text
+            self.start_position = start_position
+            self.display = display or text
+            self.display_meta = display_meta
+
+    class Completer:  # type: ignore[no-redef]
+        """Fallback completer base class."""
+
+        def get_completions(self, document, complete_event):  # pragma: no cover - stub
+            return ()
+
+    class Document:  # type: ignore[no-redef]
+        """Minimal document placeholder used for typing compatibility."""
+
+        text_before_cursor: str = ""
 
 # ChromaDB integration for FloatQL search panel
 try:
