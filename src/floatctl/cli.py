@@ -526,6 +526,34 @@ def create_cli_app() -> click.Group:
             click.echo(f"Error generating {shell} completion: {result.stderr}", err=True)
     
     @cli.command()
+    @click.option(
+        "--history",
+        "history_limit",
+        type=int,
+        default=12,
+        show_default=True,
+        help="Number of recent commands to display in the TUI history panel.",
+    )
+    @click.pass_context
+    def tui(ctx: click.Context, history_limit: int) -> None:
+        """Launch a minimal FloatCtl terminal UI with optional automation."""
+
+        if os.environ.get("_FLOATCTL_COMPLETE"):
+            return
+
+        from floatctl.tui.simple import FloatCtlInvoker, SimpleFloatCtlTUI
+
+        root_context = ctx.find_root()
+        cli_app = root_context.command
+        plugin_manager = None
+        if ctx.obj:
+            plugin_manager = ctx.obj.get("plugin_manager")
+
+        invoker = FloatCtlInvoker(cli_app=cli_app, plugin_manager=plugin_manager)
+        app = SimpleFloatCtlTUI(invoker=invoker, history_limit=history_limit)
+        app.run()
+
+    @cli.command()
     @click.pass_context
     def repl(ctx: click.Context) -> None:
         """Launch interactive REPL mode for FloatCtl.
