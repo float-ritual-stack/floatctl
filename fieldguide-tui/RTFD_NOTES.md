@@ -1,0 +1,3 @@
+- Ratatui layout & widgets: https://docs.rs/ratatui/latest/ratatui/ — guides the header/body/footer composition and section chunks.
+- Crossterm terminal control: https://docs.rs/crossterm/latest/crossterm/terminal/ — ensures raw mode and alternate screen are entered/exited cleanly.
+- rmcp server & macros: https://docs.rs/rmcp/latest — reference for #[tool_router] usage and CallToolResult responses.
