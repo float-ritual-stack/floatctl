@@ -1,0 +1,3 @@
+- [Ratatui layout patterns](https://docs.rs/ratatui/latest/ratatui/layout/) — guides the vertical split strategy for header, body, and footer rendering.
+- [Crossterm terminal mode APIs](https://docs.rs/crossterm/latest/crossterm/terminal/) — ensure raw mode and the alternate screen are entered and restored safely.
+- [rmcp server macros](https://docs.rs/rmcp/latest) — reference for wiring `#[tool_router]`/`#[tool]` annotated handlers that return `CallToolResult`.
