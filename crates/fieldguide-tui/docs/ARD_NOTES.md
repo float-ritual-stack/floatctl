@@ -1,0 +1,22 @@
+# Applied Reading Digest
+
+- **Ratatui Layout Guide** – <https://docs.rs/ratatui/latest/ratatui/layout/struct.Layout.html>
+  - Reinforced using vertical `Layout` chunks per section to avoid overlap.
+  - Inspired using proportional constraints to balance sections regardless of count.
+  - Confirmed `TestBackend` usage for layout assertions in tests.
+- **Crossterm Terminal Modes** – <https://docs.rs/crossterm/latest/crossterm/terminal/>
+  - Drove the guard pattern that restores raw mode and the alternate screen on exit.
+  - Clarified that `EnterAlternateScreen`/`LeaveAlternateScreen` are idempotent around panics.
+  - Motivated clearing the screen before redraw to prevent ghost cells.
+- **rmcp Server Macros** – <https://docs.rs/rmcp/latest/rmcp/handler/server/>
+  - Guided use of `#[tool_router]` and `parse_json_object` for typed MCP commands.
+  - Highlighted how to emit `CallToolResult::error` with textual payloads.
+  - Informed the separation of validation errors from transport failures.
+- **Serde + TOML Config Loading** – <https://docs.rs/toml/latest/toml/>
+  - Enabled optional configuration via strongly typed structs with defaults.
+  - Provided recipes for optional nested tables (keybindings/theme).
+  - Simplified round-tripping persisted state through JSON.
+- **env_logger Usage** – <https://docs.rs/env_logger/latest/env_logger/>
+  - Ensured single `env_logger::init()` and log level control via `RUST_LOG`.
+  - Encouraged structured logging for MCP connection health.
+  - Offered patterns for quiet default logging with opt-in verbosity.
