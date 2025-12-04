@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/bbs_core",
+    "crates/bbs_sandbox",
+]
+resolver = "2"

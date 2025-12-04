@@ -1,0 +1,16 @@
+{
+  "title": "Dynamic Dispatch Coverage",
+  "tabs": [
+    {"id": "welcome", "label": "Welcome", "views": [{"id": "motd", "label": "MOTD", "view": "markdown", "data": {"body": "hello"}}]},
+    {"id": "timeline", "label": "Timeline", "views": [{"id": "updates", "label": "Updates", "view": "timeline", "data": {"events": []}}]},
+    {"id": "cards", "label": "Cards", "views": [{"id": "deck", "label": "Deck", "view": "cards", "data": {"cards": []}}]},
+    {"id": "filters", "label": "Filters", "views": [{"id": "filters", "label": "Filters", "view": "filter_list", "data": {"options": []}}]},
+    {"id": "grid", "label": "Grid", "views": [{"id": "matrix", "label": "Matrix", "view": "grid_toggle", "data": {"rows": []}}]},
+    {"id": "overlay", "label": "Overlay", "views": [{"id": "compose", "label": "Compose", "view": "overlay", "data": {"actions": []}}]},
+    {"id": "router", "label": "Router", "views": [{"id": "router", "label": "Router", "view": "router", "data": {"routes": []}}]},
+    {"id": "tabs", "label": "Tabs", "views": [{"id": "tabs", "label": "Tabs", "view": "tabs", "data": {"tabs": []}}]},
+    {"id": "activity", "label": "Activity", "views": [{"id": "feed", "label": "Feed", "view": "activity_stream", "data": {"entries": []}}]},
+    {"id": "theme", "label": "Theme", "views": [{"id": "theme", "label": "Theme", "view": "theme", "data": {"presets": []}}]},
+    {"id": "lab", "label": "Lab", "views": [{"id": "experiment", "label": "Experiment", "view": "hologram", "data": {"note": "unsupported"}}]}
+  ]
+}

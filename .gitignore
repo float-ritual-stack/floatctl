@@ -19,6 +19,7 @@ yarn-error.log*
 dev-debug.log
 # Dependency directories
 node_modules/
+target/
 # Environment variables
 .env
 # Editor directories and files

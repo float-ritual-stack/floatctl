@@ -1,0 +1,294 @@
+{
+  "title": "FloatCtl BBS Seed",
+  "summary": "Reference content covering each renderer used by the FloatCtl bulletin board TUI.",
+  "theme": {
+    "name": "nocturne",
+    "palette": {
+      "background": "#0f1014",
+      "foreground": "#e0e1e8",
+      "primary": "#74c0fc",
+      "secondary": "#a0aec0",
+      "accent": "#ff63c3"
+    },
+    "pills": {
+      "background": "#1d2538",
+      "foreground": "#e4e7f4",
+      "border": "#74c0fc",
+      "modifiers": ["bold"]
+    },
+    "accents": {
+      "focus": "#74c0fc",
+      "warning": "#ffc46b",
+      "success": "#44cf8d"
+    }
+  },
+  "tabs": [
+    {
+      "id": "welcome",
+      "label": "Welcome",
+      "icon": "sparkles",
+      "description": "Start here for the daily briefing and quick launch links.",
+      "pills": [
+        { "label": "Live", "tone": "accent" },
+        { "label": "v0.1", "tone": "neutral" }
+      ],
+      "views": [
+        {
+          "id": "motd",
+          "label": "Message of the day",
+          "view": "markdown",
+          "data": {
+            "body": "# Welcome to the FloatCtl BBS\\n- Use **Tab** to cycle navigation\\n- Press **?** for keymap help\\n- Try the Router tab for live dispatch"
+          }
+        },
+        {
+          "id": "updates",
+          "label": "Changelog",
+          "view": "timeline",
+          "data": {
+            "events": [
+              {"title": "Router demo added", "timestamp": "2024-05-03", "details": "Coverage for every renderer now ships in the seed."},
+              {"title": "Theme overhaul", "timestamp": "2024-04-22", "details": "Richer palette controls and pill accents."},
+              {"title": "Initial import", "timestamp": "2024-04-01", "details": "BBS shell delivered with cards, lists, and overlays."}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cards",
+      "label": "Cards",
+      "icon": "layers",
+      "description": "Stacked cards highlight ongoing experiments and threads.",
+      "views": [
+        {
+          "id": "card_deck",
+          "label": "Thread Spotlight",
+          "view": "cards",
+          "data": {
+            "cards": [
+              {
+                "title": "Protocol Walkthrough",
+                "status": "In Review",
+                "meta": ["@lea", "Last touched 14:32"],
+                "body": "Drafting onboarding walkthrough that mirrors the FloatCtl CLI wizard."
+              },
+              {
+                "title": "Widget Pack",
+                "status": "Shipped",
+                "meta": ["@dani", "Released in 0.18"],
+                "body": "Buttons, toggles, and list adapters extracted for reuse in bespoke rooms."
+              },
+              {
+                "title": "Artifact Vault",
+                "status": "Prototype",
+                "meta": ["@romy", "Blocked on search"],
+                "body": "Centralised archive that can hydrate conversation branches into the TUI."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "filters",
+      "label": "Filters",
+      "icon": "funnel",
+      "description": "Interactive filters to slice large backlogs and ideation queues.",
+      "views": [
+        {
+          "id": "triage",
+          "label": "Backlog Triage",
+          "view": "filter_list",
+          "data": {
+            "options": [
+              {"label": "Ready for Review", "count": 4},
+              {"label": "Needs Spec", "count": 8},
+              {"label": "Blocked", "count": 2},
+              {"label": "Shipped", "count": 15}
+            ],
+            "selected": "Ready for Review",
+            "filters": ["priority:high", "owner:core"]
+          },
+          "pills": [
+            { "label": "Alt+F toggles", "tone": "info" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grid",
+      "label": "Grid",
+      "icon": "layout",
+      "description": "Matrix toggle showcasing dense dashboards and KPIs.",
+      "views": [
+        {
+          "id": "status_matrix",
+          "label": "Ops Dashboard",
+          "view": "grid_toggle",
+          "data": {
+            "columns": ["Owner", "Status", "ETA"],
+            "rows": [
+              ["Ops Rotation", "Green", "Today"],
+              ["MCP Bridge", "Amber", "Tomorrow"],
+              ["Docs Refresh", "Blue", "Next week"]
+            ],
+            "toggles": [
+              {"label": "Show archived", "active": false},
+              {"label": "Compact mode", "active": true}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "overlays",
+      "label": "Overlay",
+      "icon": "dialog",
+      "description": "Layered overlays for contextual menus and confirmations.",
+      "views": [
+        {
+          "id": "compose",
+          "label": "Compose Overlay",
+          "view": "overlay",
+          "data": {
+            "title": "New Broadcast",
+            "body": "Share a quick update with the crew.",
+            "actions": ["Send", "Save Draft", "Cancel"]
+          },
+          "pills": [
+            { "label": "Esc closes", "tone": "warning" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "router",
+      "label": "Router",
+      "icon": "git-branch",
+      "description": "Dispatch table fanning out to every renderer for integration tests.",
+      "views": [
+        {
+          "id": "router",
+          "label": "View Dispatch",
+          "view": "router",
+          "data": {
+            "routes": [
+              {"path": "cards", "view": "cards"},
+              {"path": "filters", "view": "filter_list"},
+              {"path": "grid", "view": "grid_toggle"},
+              {"path": "overlay", "view": "overlay"},
+              {"path": "tabs", "view": "tabs"},
+              {"path": "activity", "view": "activity_stream"},
+              {"path": "theme", "view": "theme"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tabs",
+      "label": "Tabs",
+      "icon": "tab",
+      "description": "Nested tabs with badges and contextual hints.",
+      "views": [
+        {
+          "id": "navigator",
+          "label": "Nested Tabs",
+          "view": "tabs",
+          "data": {
+            "tabs": [
+              {"label": "Now", "pills": ["Live"]},
+              {"label": "Later", "pills": ["Queued"]},
+              {"label": "Done", "pills": ["Archive"]}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "activity",
+      "label": "Activity",
+      "icon": "pulse",
+      "description": "Streaming events for ops, automation, and alerts.",
+      "views": [
+        {
+          "id": "activity_feed",
+          "label": "Live Feed",
+          "view": "activity_stream",
+          "data": {
+            "entries": [
+              {"actor": "scheduler", "message": "Kicked nightly summariser", "level": "info"},
+              {"actor": "claude", "message": "Posted triage results", "level": "success"},
+              {"actor": "deploy", "message": "Staging update queued", "level": "warning"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "theme",
+      "label": "Theme",
+      "icon": "palette",
+      "description": "Theme playground demonstrating palette switching and pill rendering.",
+      "views": [
+        {
+          "id": "theme_tools",
+          "label": "Theme Controls",
+          "view": "theme",
+          "data": {
+            "presets": ["Nocturne", "Daybreak"],
+            "tips": "Call Theme::default_light() to adopt the daytime palette."
+          }
+        }
+      ]
+    },
+    {
+      "id": "handbook",
+      "label": "Handbook",
+      "icon": "book",
+      "description": "Reference markdown and cards combined in one view for docs.",
+      "views": [
+        {
+          "id": "handbook_md",
+          "label": "Authoring Guide",
+          "view": "markdown",
+          "data": {
+            "body": "## Writing Guides\\nUse overlays for inline help and grid toggles for dashboards."
+          }
+        },
+        {
+          "id": "handbook_cards",
+          "label": "Quick Links",
+          "view": "cards",
+          "data": {
+            "cards": [
+              {"title": "Design Tokens", "status": "Updated", "body": "Palette values for each renderer."},
+              {"title": "Navigation", "status": "Reference", "body": "Routing and keybindings."}
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "keymaps": [
+    {
+      "context": "global",
+      "description": "Global navigation and overlays",
+      "actions": [
+        {"id": "next_tab", "description": "Go to next tab", "keys": ["Tab"], "group": "navigation"},
+        {"id": "prev_tab", "description": "Go to previous tab", "keys": ["Shift+Tab"], "group": "navigation"},
+        {"id": "show_help", "description": "Toggle keymap overlay", "keys": ["?"], "group": "help"}
+      ]
+    },
+    {
+      "context": "lists",
+      "description": "Filter list navigation",
+      "actions": [
+        {"id": "next_item", "description": "Move cursor down", "keys": ["j", "Down"], "group": "navigation"},
+        {"id": "prev_item", "description": "Move cursor up", "keys": ["k", "Up"], "group": "navigation"},
+        {"id": "apply_filter", "description": "Apply highlighted filter", "keys": ["Enter"], "group": "actions"}
+      ]
+    }
+  ]
+}
