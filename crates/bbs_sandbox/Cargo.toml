@@ -1,0 +1,15 @@
+[package]
+name = "bbs_sandbox"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "bbs_sandbox"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+bbs_core = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
